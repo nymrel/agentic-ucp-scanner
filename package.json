@@ -41,7 +41,8 @@
     "build": "tsc",
     "start": "node ./bin/ucp-audit.js",
     "test": "node --test test/**/*.test.js test/**/*.test.ts 2>/dev/null || node --test test/runner.test.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
