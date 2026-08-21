@@ -14,7 +14,7 @@
     "autonomous-checkout",
     "nymrel"
   ],
-  "author": "Nymrel / JalenBuilds LLC <contact@nymrel.com>",
+  "author": "Nymrel <contact@nymrel.com>",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
