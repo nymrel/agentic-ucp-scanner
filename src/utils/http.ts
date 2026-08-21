@@ -21,7 +21,7 @@ export async function safeFetch(
   } = {}
 ): Promise<HttpResponse> {
   const timeoutMs = options.timeoutMs ?? 10000;
-  const userAgent = options.userAgent ?? 'AgenticUCPScanner/1.0 (+https://nymrel.com; contact@jalenbuilds.com)';
+  const userAgent = options.userAgent ?? 'AgenticUCPScanner/1.0 (+https://nymrel.com; contact@nymrel.com)';
 
   const headers: Record<string, string> = {
     'User-Agent': userAgent,

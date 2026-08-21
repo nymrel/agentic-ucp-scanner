@@ -255,7 +255,7 @@ The **Universal Commerce Protocol (`ucp.json` or `/.well-known/ucp`)** declares 
     "legalName": "Apex Hardware Systems LLC",
     "entityId": "LEI-8945001234567890",
     "parentEntity": "Nymrel / JalenBuilds LLC",
-    "contactEmail": "contact@jalenbuilds.com",
+    "contactEmail": "contact@nymrel.com",
     "url": "https://apex-hardware.nymrel.com"
   },
   "agentEndpoints": {
@@ -319,4 +319,4 @@ npm run lint
 ## License
 
 MIT License &copy; 2026 Nymrel / JalenBuilds LLC.
-Authored by Jalen (<contact@jalenbuilds.com>).
+Authored by Jalen (<contact@nymrel.com>).

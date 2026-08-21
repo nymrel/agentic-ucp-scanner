@@ -17,7 +17,7 @@ test('UCP Manifest Check - Full Perfect Manifest', () => {
       name: 'Test Merchant',
       legalName: 'Test Merchant LLC',
       parentEntity: 'Nymrel / JalenBuilds LLC',
-      contactEmail: 'contact@jalenbuilds.com',
+      contactEmail: 'contact@nymrel.com',
     },
     agentEndpoints: {
       catalog: 'https://test.com/catalog.json',

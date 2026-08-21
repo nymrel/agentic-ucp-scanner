@@ -8,7 +8,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within `agentic-ucp-scanner`, please send an email to security@jalenbuilds.com or contact@jalenbuilds.com. All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability within `agentic-ucp-scanner`, please send an email to security@jalenbuilds.com or contact@nymrel.com. All security vulnerabilities will be promptly addressed.
 
 Please include:
 1. Description of the vulnerability and its potential impact.
