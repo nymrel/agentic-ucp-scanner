@@ -1,0 +1,3 @@
+# Blanket block on all robots
+User-agent: *
+Disallow: /

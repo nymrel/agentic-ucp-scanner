@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /wp-admin/
+Allow: /
+
+Sitemap: https://classic-bookshop.example.com/sitemap.xml

@@ -1,0 +1,20 @@
+# Apex Hardware Systems
+> Autonomous AI Agent Procurement Node and Edge Robotics Hardware.
+
+## Overview
+Apex Hardware provides high-reliability Edge AI inference hardware, telemetry boards, and robotics nodes designed for machine-to-machine procurement.
+
+## Agent API Endpoints
+- Catalog Endpoint: [Catalog JSON](https://apex-hardware.nymrel.com/api/v1/catalog.json)
+- Instant Quote: `POST /api/v1/quote`
+- Autonomous Order: `POST /api/v1/order`
+- UCP Manifest: [UCP Manifest](https://apex-hardware.nymrel.com/ucp.json)
+
+## Payment Protocols
+- HTTP 402 / x402 Header micropayments
+- AP2 (Agent Payment Protocol)
+- ACP (Agent Commerce Protocol)
+- Stripe Agent Instant Payment Links
+
+## Extended Reference
+For full product spec sheets, see [llms-full.txt](https://apex-hardware.nymrel.com/llms-full.txt).

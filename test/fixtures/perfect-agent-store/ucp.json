@@ -1,0 +1,45 @@
+{
+  "ucpVersion": "1.0",
+  "merchant": {
+    "name": "Apex Hardware",
+    "legalName": "Apex Hardware Systems LLC",
+    "entityId": "LEI-8945001234567890",
+    "parentEntity": "Nymrel / JalenBuilds LLC",
+    "contactEmail": "contact@jalenbuilds.com",
+    "url": "https://apex-hardware.nymrel.com"
+  },
+  "agentEndpoints": {
+    "catalog": "https://apex-hardware.nymrel.com/api/v1/catalog.json",
+    "search": "https://apex-hardware.nymrel.com/api/v1/search",
+    "quote": "https://apex-hardware.nymrel.com/api/v1/quote",
+    "order": "https://apex-hardware.nymrel.com/api/v1/order",
+    "checkout": "https://apex-hardware.nymrel.com/api/v1/checkout",
+    "webhook": "https://apex-hardware.nymrel.com/api/v1/events",
+    "status": "https://apex-hardware.nymrel.com/api/v1/status"
+  },
+  "paymentCapabilities": {
+    "protocols": [
+      "x402",
+      "ap2",
+      "acp",
+      "stripe_agent_link",
+      "solana_pay",
+      "algorand_token",
+      "usdc"
+    ],
+    "supportedTokens": [
+      "USD",
+      "USDC",
+      "ALGO",
+      "SOL"
+    ],
+    "escrow": true,
+    "x402Enabled": true,
+    "settlementSpeed": "instant"
+  },
+  "authentication": {
+    "type": "signature",
+    "algorithm": "ed25519",
+    "publicKeyUrl": "https://apex-hardware.nymrel.com/.well-known/agent-keys.json"
+  }
+}

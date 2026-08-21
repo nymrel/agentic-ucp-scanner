@@ -1,0 +1,26 @@
+# robots.txt for Apex Hardware
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: GPTBot
+Disallow: /private/
+
+User-agent: Google-Extended
+Disallow: /private/
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /checkout/session/
+
+Sitemap: https://apex-hardware.nymrel.com/sitemap.xml
+Sitemap: https://apex-hardware.nymrel.com/catalog-sitemap.xml

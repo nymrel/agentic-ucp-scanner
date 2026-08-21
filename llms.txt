@@ -1,0 +1,36 @@
+# agentic-ucp-scanner
+> Zero-dependency Node.js/TypeScript CLI and library to audit websites and fixtures for AI Agent Commerce Readiness (UCP, JSON-LD Machine Trust, robots.txt, llms.txt, Schema.org, and Autonomous Payments).
+
+## System Information
+- Author: Nymrel / JalenBuilds LLC
+- Repository: https://github.com/nymrel/agentic-ucp-scanner
+- Runtime: Node.js >= 18.0.0 (Zero external runtime dependencies)
+- License: MIT
+
+## Core Capabilities
+- `auditUrl(url, options)`: Crawls a live URL multi-pass for HTML, robots.txt, llms.txt, and UCP manifests.
+- `auditHtml(html, options)`: Audits raw HTML markup, extracting JSON-LD graphs, meta tags, and payment directives.
+- `auditManifest(manifest)`: Validates Universal Commerce Protocol (UCP) JSON manifests.
+- `calculateScore(auditResult)`: Computes deterministic 0-100 score across 5 weighted dimensions.
+
+## Scoring Dimensions (100 pts total)
+1. **Discovery & Orientation** (20 pts): `llms.txt`, `llms-full.txt`, sitemap, canonical links.
+2. **Entity Graph & Machine Trust** (20 pts): JSON-LD `Organization`/`Store`, parent entity provenance, legal IDs, sameAs.
+3. **Intent & Commerce Offers** (20 pts): Schema.org `Product`/`Offer`/`Service`, pricing transparency, availability, return policy.
+4. **Machine Payments & Checkout** (20 pts): UCP manifest, x402 headers, AP2/ACP protocols, autonomous checkout endpoints.
+5. **AI Crawler & Bot Access** (20 pts): `robots.txt` permissive for AI search agents (OAI-SearchBot, ClaudeBot, PerplexityBot).
+
+## CLI Reference
+```bash
+npx agentic-ucp-scanner <url-or-fixture-path> [options]
+ucp-audit https://example.com --format json
+ucp-audit ./test/fixtures/perfect-agent-store --format terminal
+```
+
+## Flags
+- `--format, -f`: Output format (`terminal`, `json`, `markdown`). Default: `terminal`.
+- `--output, -o`: Output destination file.
+- `--min-score`: Exit with code 1 if score < threshold (useful for CI/CD gates).
+- `--mock`: Run against built-in fixtures (`perfect`, `partial`, `hostile`).
+- `--timeout`: Network timeout in ms (default: 10000).
+- `--no-color`: Disable ANSI color output.

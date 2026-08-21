@@ -1,0 +1,13 @@
+# Apex Hardware Systems - Extended Specification
+> Full product catalog, pinout diagrams, and autonomous procurement specifications.
+
+## Product 1: Apex Neural Core Node v1
+- SKU: APEX-NODE-001
+- Price: $499.00 USD
+- Availability: InStock
+- Latency: <2ms inference
+- Interfaces: CAN Bus, Gigabit Ethernet, USB-C, PCIe Gen 4
+- API Order Payload: `{"sku": "APEX-NODE-001", "quantity": 1, "paymentProtocol": "x402"}`
+
+## Terms & Return Policy
+30-day hardware return window with instant credit issuance upon carrier tracking verification.

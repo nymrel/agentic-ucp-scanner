@@ -1,0 +1,53 @@
+{
+  "name": "agentic-ucp-scanner",
+  "version": "1.0.0",
+  "description": "Zero-dependency Node.js/TypeScript CLI & library to audit websites and fixtures for AI Agent Commerce Readiness, UCP, JSON-LD Machine Trust, and autonomous purchasing capabilities.",
+  "keywords": [
+    "ucp",
+    "agentic-commerce",
+    "ai-agents",
+    "machine-trust",
+    "json-ld",
+    "llms-txt",
+    "robots-txt",
+    "schema-org",
+    "autonomous-checkout",
+    "nymrel"
+  ],
+  "author": "Nymrel / JalenBuilds LLC <contact@jalenbuilds.com>",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "ucp-audit": "./bin/ucp-audit.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "llms.txt"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node ./bin/ucp-audit.js",
+    "test": "node --test test/**/*.test.js test/**/*.test.ts 2>/dev/null || node --test test/runner.test.js",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
