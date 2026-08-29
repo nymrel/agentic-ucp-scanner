@@ -87,10 +87,27 @@ test('rejects unsafe methods, headers, and option bounds before connecting', asy
     safeFetch('https://example.com', { method: 'POST' }),
     /Unsupported audit request method/
   );
-  await assert.rejects(
-    safeFetch('https://example.com', { headers: { Host: 'internal.example' } }),
-    /Request header is not allowed/
-  );
+  for (const header of [
+    'Connection',
+    'Content-Length',
+    'Expect',
+    'Host',
+    'HTTP2-Settings',
+    'Keep-Alive',
+    'Proxy-Authenticate',
+    'Proxy-Authorization',
+    'Proxy-Connection',
+    'TE',
+    'Trailer',
+    'Transfer-Encoding',
+    'Upgrade',
+  ]) {
+    await assert.rejects(
+      safeFetch('https://example.com', { headers: { [header]: 'unsafe' } }),
+      /Request header is not allowed/,
+      `${header} should be rejected`
+    );
+  }
   await assert.rejects(
     safeFetch('https://example.com', { userAgent: 'scanner\r\ninjected: true' }),
     /Invalid character in header content/

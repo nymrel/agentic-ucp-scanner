@@ -25,8 +25,15 @@ const DEFAULT_ACCEPT = 'text/html,application/xhtml+xml,application/json,text/pl
 const FORBIDDEN_REQUEST_HEADERS = new Set([
   'connection',
   'content-length',
+  'expect',
   'host',
+  'http2-settings',
+  'keep-alive',
+  'proxy-authenticate',
   'proxy-authorization',
+  'proxy-connection',
+  'te',
+  'trailer',
   'transfer-encoding',
   'upgrade',
 ]);
