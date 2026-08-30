@@ -3,15 +3,14 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green.svg)
-![Dependencies](https://img.shields.io/badge/dependencies-0%20(zero)-brightgreen.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)
-![Protocol](https://img.shields.io/badge/Protocol-UCP%201.0-orange.svg)
-![Dual-Audience](https://img.shields.io/badge/Dual--Audience-Certified-purple.svg)
+![Node](https://img.shields.io/badge/Node-22%20%7C%2024%20%7C%2026-green.svg)
+![Runtime dependencies](https://img.shields.io/badge/runtime_dependencies-0-brightgreen.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-7-blue.svg)
+![Model](https://img.shields.io/badge/model-UCP--oriented-orange.svg)
 
-**Zero-dependency Node.js/TypeScript CLI and library to audit any website or local codebase for AI Agent Commerce Readiness, Universal Commerce Protocol (UCP), Schema.org Machine Trust, and Autonomous Purchasing Capabilities.**
+**Zero-runtime-dependency Node.js/TypeScript CLI and library for inspecting a public website or local site fixture for machine-readable commerce signals.**
 
-[Overview](#overview) • [Architecture](#architecture) • [Quickstart](#quickstart) • [Scoring Engine](#scoring-dimensions--weights) • [Programmatic API](#programmatic-api) • [CLI Reference](#cli-reference) • [UCP Specification](#ucp-manifest-specification)
+[Overview](#overview) • [Architecture](#architecture) • [Quickstart](#quickstart) • [Scoring Engine](#scoring-dimensions--weights) • [Programmatic API](#programmatic-api) • [CLI Reference](#cli-reference) • [Manifest Profile](#project-ucp-oriented-manifest-profile)
 
 </div>
 
@@ -19,15 +18,18 @@
 
 ## Overview
 
-As autonomous AI agents (`ChatGPT Search`, `Perplexity`, `Claude`, `Cursor`, autonomous procurement bots) evolve from research assistants to economic actors with purchasing authority, websites must transition from human-only visual storefronts to **Machine-Verifiable Commerce Endpoints**.
+`agentic-ucp-scanner` checks discoverability, structured entity and offer data, crawler policy, declared machine endpoints, and payment-related signals. Remote targets are treated as untrusted: URL admission, DNS resolution, redirects, headers, timeouts, and response sizes are bounded by default.
 
-`agentic-ucp-scanner` evaluates websites against the **Universal Commerce Protocol (UCP)** standard and computes a deterministic **Machine Trust Score (0–100)** across 5 weighted dimensions:
+The scanner computes a deterministic diagnostic score (0–100) across five equally weighted dimensions:
 
 1. **Discovery & AI Orientation**: `llms.txt`, `llms-full.txt`, sitemaps, canonical tags.
 2. **Entity Graph & Machine Trust**: JSON-LD `Organization`/`Store`, parent entity provenance (`Nymrel` &rarr; `JalenBuilds LLC`), legal IDs, `sameAs`.
 3. **Intent & Commerce Offers**: Schema.org `Product`, `Offer`, `Service`, price transparency, currency ISO-4217, availability, merchant return terms.
 4. **Machine Payments & Autonomous Checkout**: UCP manifests (`/.well-known/ucp`, `/ucp.json`), HTTP 402 / x402 headers, AP2/ACP protocols, Stripe Agent Payment links, stablecoin micropayments.
-5. **AI Crawler & Bot Access**: `robots.txt` permissive for AI search agents (`OAI-SearchBot`, `ClaudeBot`, `PerplexityBot`) vs blanket hostile scraping blocks.
+5. **AI Crawler & Bot Access**: explicit `robots.txt` rules for named search and crawler user agents.
+
+> [!IMPORTANT]
+> The score is a project-defined heuristic, not a certification, security assessment, standards-conformance result, search-ranking promise, or proof that an autonomous agent can complete a transaction. Review the underlying checks and target evidence before acting on a grade.
 
 ---
 
@@ -82,17 +84,22 @@ As autonomous AI agents (`ChatGPT Search`, `Perplexity`, `Claude`, `Cursor`, aut
 
 ## Quickstart
 
-### 1. Global / NPX Execution
+### 1. Run the current source
 
-Audit any live website without installation:
+The npm package is not published as of 2026-08-30. Build and verify the current repository before using the CLI:
+
+```bash
+git clone https://github.com/nymrel/agentic-ucp-scanner.git
+cd agentic-ucp-scanner
+npm ci --ignore-scripts
+npm run check
+node ./bin/ucp-audit.js --mock perfect
+```
+
+After an operator-approved registry release, the expected package commands are:
 
 ```bash
 npx agentic-ucp-scanner https://nymrel.com
-```
-
-Or install globally:
-
-```bash
 npm install -g agentic-ucp-scanner
 ucp-audit https://nymrel.com
 ```
@@ -125,7 +132,6 @@ ucp-audit --mock hostile
 ```text
 USAGE:
   ucp-audit <url-or-path> [options]
-  npx agentic-ucp-scanner <url-or-path> [options]
 
 ARGUMENTS:
   <url-or-path>        The live URL or local fixture directory/file to audit.
@@ -136,6 +142,8 @@ OPTIONS:
   --min-score <0-100>  Exit with code 1 if total score is below this threshold (CI gate).
   --mock <name>        Run against built-in mock fixtures: perfect, partial, hostile.
   --timeout <ms>       Network request timeout in milliseconds (default: 10000).
+  --max-response-bytes Maximum bytes accepted per remote or local file (default: 2097152).
+  --max-redirects <n>  Maximum HTTP redirects per request (default: 5).
   --no-color           Disable ANSI styling for plain text / headless environments.
   --verbose            Display detailed debug diagnostics during execution.
   -v, --version        Show version number.
@@ -144,18 +152,21 @@ OPTIONS:
 
 ### CI/CD Quality Gate Example
 
-Add an automated AI Agent Readiness gate to GitHub Actions:
+Build locally in CI and gate on the project-defined score:
 
 ```yaml
-- name: Audit AI Commerce Readiness
-  run: npx agentic-ucp-scanner https://staging.example.com --min-score 85 --format markdown --output audit-report.md
+- run: npm ci --ignore-scripts
+- run: npm run build
+- run: node ./bin/ucp-audit.js https://staging.example.com --min-score 85 --format markdown --output audit-report.md
 ```
+
+Pin the repository commit or published package version in a real consumer workflow; do not execute an unpinned moving target.
 
 ---
 
 ## Programmatic API
 
-`agentic-ucp-scanner` exports clean, typed TypeScript/JavaScript functions:
+After building or installing a released package, `agentic-ucp-scanner` exports typed TypeScript/JavaScript functions:
 
 ```typescript
 import {
@@ -234,17 +245,17 @@ Total Score is deterministically normalized to **100 points**:
 
 ### Grade Scale
 
-- **Grade A (90–100)**: *Agent-Native*. Full autonomous discovery, verified entity trust, structured pricing, and active machine checkout rails.
-- **Grade B (75–89)**: *Agent-Friendly*. Solid structured data and crawler access; minor gaps in UCP checkout or micropayment protocols.
-- **Grade C (50–74)**: *Partial AI Readiness*. Basic JSON-LD or meta tags; missing `llms.txt` or autonomous payment endpoints.
-- **Grade D (25–49)**: *Legacy Web*. Human-centric website with missing schemas and opaque pricing.
-- **Grade F (0–24)**: *Agent-Hostile*. Missing schemas, blocked search bots, or zero machine interfaces.
+- **Grade A (90–100)**: most implemented checks produced strong signals.
+- **Grade B (75–89)**: good signals with targeted gaps.
+- **Grade C (50–74)**: partial signals with material gaps.
+- **Grade D (25–49)**: limited signals across the implemented checks.
+- **Grade F (0–24)**: few signals were detected; inspect individual failures before drawing conclusions.
 
 ---
 
-## UCP Manifest Specification
+## Project UCP-Oriented Manifest Profile
 
-The **Universal Commerce Protocol (`ucp.json` or `/.well-known/ucp`)** declares a merchant's machine-readable commerce endpoints:
+The scanner recognizes this project profile at `ucp.json` or `/.well-known/ucp`. It is an input contract for the implemented checks, not a claim of external protocol conformance:
 
 ```json
 {
@@ -290,33 +301,25 @@ The **Universal Commerce Protocol (`ucp.json` or `/.well-known/ucp`)** declares 
 
 ---
 
-## The Dual-Audience Philosophy
+## Dual-Audience Design Principle
 
-Built under the **Nymrel Dual-Audience Operating Standard**:
-
-> *"Every digital product and interface must deliver visually elegant typography and ergonomics for human operators, while simultaneously offering 100% deterministic, machine-verifiable trust for autonomous AI purchasing agents."*
-
----
+The project aims to keep evidence understandable to human operators and structured enough for automated consumers. Determinism applies to equivalent captured inputs; live network state can change between runs.
 
 ## Development & Testing
 
 ```bash
-# Clone and enter repository
-cd C:\Users\johns\Desktop\agentic-ucp-scanner
+# Install exactly from package-lock.json without lifecycle scripts
+npm ci --ignore-scripts
 
-# Compile TypeScript
-npm run build
+# Full type, build, test, audit, and package-content gate
+npm run check
 
-# Run automated test suite (100% offline unit & integration tests)
-npm test
-
-# Type check
-npm run lint
+# Built-in Node.js coverage report
+npm run test:coverage
 ```
 
 ---
 
 ## License
 
-MIT License &copy; 2026 Nymrel / JalenBuilds LLC.
-Authored by Jalen (<contact@nymrel.com>).
+Released under the MIT License. See [`LICENSE`](./LICENSE).

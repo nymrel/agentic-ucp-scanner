@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateScore } from '../../dist/scoring.js';
+import { calculateScore } from '../dist/scoring.js';
 
 test('Scoring Engine - All Passing Checks produces Grade A', () => {
   const checks = [

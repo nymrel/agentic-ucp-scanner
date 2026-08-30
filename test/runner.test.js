@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditLocalFixture, auditHtml, auditManifest } from '../dist/scanner.js';
@@ -97,4 +99,27 @@ test('In-Memory UCP Manifest Audit', () => {
   const result = auditManifest(manifest);
   assert.ok(result.score.totalScore > 0);
   assert.ok(result.checks.some((c) => c.id === 'ucp-001' && c.status === 'PASS'));
+});
+
+test('In-Memory UCP Manifest Audit rejects malformed JavaScript input', () => {
+  const result = auditManifest({
+    ucpVersion: '1.0',
+    merchant: { name: 'Malformed' },
+    agentEndpoints: { checkout: 'javascript:alert(1)' },
+    paymentCapabilities: { protocols: ['x402'] },
+  });
+
+  assert.equal(result.ucpManifest, null);
+  assert.ok(result.checks.some((check) => check.id === 'ucp-001' && check.status === 'FAIL'));
+});
+
+test('Local fixture audit rejects files above the configured byte limit', async (t) => {
+  const fixtureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'ucp-scanner-bounds-'));
+  t.after(() => fs.rmSync(fixtureDirectory, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(fixtureDirectory, 'index.html'), 'x'.repeat(32), 'utf8');
+
+  await assert.rejects(
+    auditLocalFixture(fixtureDirectory, { maxResponseBytes: 16 }),
+    /exceeds 16 byte limit/
+  );
 });

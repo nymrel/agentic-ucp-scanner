@@ -170,7 +170,7 @@ export function checkJsonLd(input: JsonLdCheckInput): {
     maxScore: 6,
     message:
       entityScore >= 5
-        ? `Rich machine trust entity graph detected with verified provenance: [${parentChain.join('; ') || orgs.map((o) => o.name).join(', ')}]`
+        ? `Rich entity graph detected with declared provenance fields: [${parentChain.join('; ') || orgs.map((o) => o.name).join(', ')}]`
         : orgs.length > 0
         ? `Basic Organization schema found (${orgs.map((o) => o.name).join(', ')}). Missing explicit parentOrganization hierarchy or legal identifier.`
         : 'Missing Organization / Store Schema.org node for entity identification.',

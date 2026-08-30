@@ -74,14 +74,14 @@ export function checkLlmsTxt(input: LlmsTxtCheckInput): {
 
     checks.push({
       id: 'llm-001',
-      name: 'llms.txt Standard Presence',
+      name: 'llms.txt Convention Presence',
       dimension: 'discovery',
       status: 'WARN',
       score: 0,
       maxScore: 6,
       message: 'No `/llms.txt` file found. AI agents lack structured orientation for this site.',
       remediation:
-        'Add an `/llms.txt` file following the /llms.txt specification to orient AI agents with your company, products, and APIs.',
+        'Consider an `/llms.txt` file following the documented convention when it accurately helps automated consumers find key resources.',
     });
 
     checks.push({
@@ -104,7 +104,7 @@ export function checkLlmsTxt(input: LlmsTxtCheckInput): {
   // Check 1: Existence & Size
   checks.push({
     id: 'llm-001',
-    name: 'llms.txt Standard Presence',
+    name: 'llms.txt Convention Presence',
     dimension: 'discovery',
     status: 'PASS',
     score: 6,
@@ -128,8 +128,8 @@ export function checkLlmsTxt(input: LlmsTxtCheckInput): {
     maxScore: 4,
     message:
       structureScore >= 3.5
-        ? `llms.txt adheres cleanly to standard specification with Title, Summary, and ${sections.length} sections.`
-        : `llms.txt is present but missing standard structural elements (e.g. blockquote summary or section headings).`,
+        ? `llms.txt follows the checked convention with a title, summary, and ${sections.length} sections.`
+        : `llms.txt is present but missing checked structural elements (for example, a blockquote summary or section headings).`,
     details: {
       hasTitle: !!title,
       hasSummary: !!summary,

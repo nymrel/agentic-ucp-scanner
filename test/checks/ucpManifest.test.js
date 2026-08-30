@@ -45,3 +45,26 @@ test('UCP Manifest Check - Full Perfect Manifest', () => {
   assert.equal(result.checks[2].status, 'PASS'); // Endpoints
   assert.equal(result.checks[3].status, 'PASS'); // Payments
 });
+
+test('UCP Manifest Check - Malformed external values fail closed', () => {
+  for (const manifest of [
+    'not-an-object',
+    {
+      ucpVersion: '1.0',
+      merchant: { name: 'Unsafe Merchant' },
+      agentEndpoints: { checkout: 'file:///etc/passwd' },
+      paymentCapabilities: { protocols: 'x402' },
+    },
+    {
+      ucpVersion: '1.0',
+      merchant: { name: 'Credentialed Endpoint' },
+      agentEndpoints: { checkout: 'https://user:secret@example.com/checkout' },
+      paymentCapabilities: { protocols: ['x402'] },
+    },
+  ]) {
+    const result = checkUcpManifest({ manifest, foundLocation: '/ucp.json' });
+    assert.equal(result.manifest, null);
+    assert.equal(result.checks[0].status, 'FAIL');
+    assert.equal(result.checks[0].score, 0);
+  }
+});

@@ -2,12 +2,13 @@
  * Check Module: Machine Payments, HTTP 402 / x402, AP2, ACP & Autonomous Checkout Rails
  */
 
-import { CheckResult, MachinePaymentsAudit, UCPManifest } from '../types.js';
+import { CheckResult, MachinePaymentsAudit } from '../types.js';
+import { validateUcpManifest } from './ucpManifest.js';
 
 export interface MachinePaymentsCheckInput {
   headers?: Record<string, string>;
   paymentLinkCandidates?: string[];
-  manifest?: UCPManifest | null;
+  manifest?: unknown;
   rawHtml?: string;
 }
 
@@ -16,9 +17,14 @@ export function checkMachinePayments(input: MachinePaymentsCheckInput): {
   checks: CheckResult[];
 } {
   const checks: CheckResult[] = [];
-  const { headers = {}, paymentLinkCandidates = [], manifest, rawHtml = '' } = input;
+  const { headers = {}, paymentLinkCandidates = [], rawHtml = '' } = input;
+  const manifestValidation =
+    input.manifest === null || input.manifest === undefined
+      ? { manifest: null, issues: [] }
+      : validateUcpManifest(input.manifest);
+  const manifest = manifestValidation.manifest;
 
-  const issues: string[] = [];
+  const issues: string[] = manifestValidation.issues.map((issue) => `Manifest ignored: ${issue}`);
   const machineEndpointsFound: string[] = [];
   const stripePaymentLinks: string[] = [];
   const cryptoPaymentRails: string[] = [];
@@ -93,10 +99,10 @@ export function checkMachinePayments(input: MachinePaymentsCheckInput): {
     maxScore: 6,
     message:
       x402Score === 6
-        ? 'Native HTTP 402 / x402 protocol declared and active for autonomous agent micropayments.'
+        ? 'HTTP 402 / x402 capability evidence was declared in a response header or validated manifest field.'
         : x402Score > 0
         ? 'x402 payment hints discovered in content, but missing formal response headers or UCP capability entry.'
-        : 'HTTP 402 / x402 micropayment standard not declared.',
+        : 'No HTTP 402 / x402 capability signal was declared.',
     details: {
       x402HeaderPresent,
       x402ManifestEnabled,
@@ -127,7 +133,7 @@ export function checkMachinePayments(input: MachinePaymentsCheckInput): {
     maxScore: 6,
     message:
       railsScore >= 5
-        ? `Direct autonomous checkout rails active (UCP checkout, ${stripePaymentLinks.length} payment link(s), rails: [${cryptoPaymentRails.join(', ') || 'Fiat/Stripe'}])`
+        ? `Checkout and payment-rail signals declared (project-profile checkout, ${stripePaymentLinks.length} payment link(s), rails: [${cryptoPaymentRails.join(', ') || 'Fiat/Stripe'}])`
         : railsScore > 0
         ? `Partial machine payment rails detected. (Links: ${stripePaymentLinks.length}, Rails: [${cryptoPaymentRails.join(', ') || 'Standard'}])`
         : 'No autonomous machine payment rails (Stripe Agent Links, AP2, ACP, or stablecoin rails) discovered.',

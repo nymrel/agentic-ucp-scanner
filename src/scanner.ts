@@ -8,7 +8,6 @@ import {
   AuditOptions,
   AuditResult,
   CheckResult,
-  UCPManifest,
 } from './types.js';
 import { getOrigin, isLocalPath, normalizeUrl, resolveUrl } from './utils/url.js';
 import { safeFetch } from './utils/http.js';
@@ -19,6 +18,30 @@ import { checkLlmsTxt } from './checks/llmsTxt.js';
 import { checkJsonLd } from './checks/jsonLd.js';
 import { checkMachinePayments } from './checks/machinePayments.js';
 import { calculateScore } from './scoring.js';
+
+const DEFAULT_LOCAL_FILE_LIMIT_BYTES = 2 * 1024 * 1024;
+const MAX_LOCAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
+
+function resolveLocalFileLimit(value: number | undefined): number {
+  const limit = value ?? DEFAULT_LOCAL_FILE_LIMIT_BYTES;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_LOCAL_FILE_LIMIT_BYTES) {
+    throw new TypeError(
+      `maxResponseBytes must be an integer between 1 and ${MAX_LOCAL_FILE_LIMIT_BYTES}`
+    );
+  }
+  return limit;
+}
+
+function readBoundedTextFile(filePath: string, maxBytes: number): string {
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) {
+    throw new Error(`Expected a regular file: ${filePath}`);
+  }
+  if (stat.size > maxBytes) {
+    throw new Error(`Local audit file exceeds ${maxBytes} byte limit: ${filePath}`);
+  }
+  return fs.readFileSync(filePath, 'utf8');
+}
 
 export async function auditUrl(targetUrl: string, options: AuditOptions = {}): Promise<AuditResult> {
   const startTime = Date.now();
@@ -34,6 +57,8 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
       timeoutMs: options.timeoutMs ?? 10000,
       userAgent: options.userAgent,
       headers: options.headers,
+      maxResponseBytes: options.maxResponseBytes,
+      maxRedirects: options.maxRedirects,
     });
     rawHtml = mainRes.text;
     responseHeaders = mainRes.headers;
@@ -78,13 +103,19 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
   const linkedUcp = parsedHtml.links.find((l) => l.rel === 'ucp-manifest' || l.rel === 'ucp');
   const ucpCustomUrl = linkedUcp ? resolveUrl(origin, linkedUcp.href) : undefined;
 
+  const companionFetchOptions = {
+    timeoutMs: options.timeoutMs ?? 8000,
+    maxResponseBytes: options.maxResponseBytes,
+    maxRedirects: options.maxRedirects,
+  };
+
   const [robotsRes, llmsRes, llmsFullRes, ucpWkRes, ucpJsonRes, ucpCustomRes] = await Promise.allSettled([
-    safeFetch(robotsUrl, { timeoutMs: options.timeoutMs ?? 8000 }),
-    safeFetch(llmsUrl, { timeoutMs: options.timeoutMs ?? 8000 }),
-    safeFetch(llmsFullUrl, { timeoutMs: options.timeoutMs ?? 8000 }),
-    safeFetch(ucpWellKnownUrl, { timeoutMs: options.timeoutMs ?? 8000 }),
-    safeFetch(ucpJsonUrl, { timeoutMs: options.timeoutMs ?? 8000 }),
-    ucpCustomUrl ? safeFetch(ucpCustomUrl, { timeoutMs: options.timeoutMs ?? 8000 }) : Promise.reject('none'),
+    safeFetch(robotsUrl, companionFetchOptions),
+    safeFetch(llmsUrl, companionFetchOptions),
+    safeFetch(llmsFullUrl, companionFetchOptions),
+    safeFetch(ucpWellKnownUrl, companionFetchOptions),
+    safeFetch(ucpJsonUrl, companionFetchOptions),
+    ucpCustomUrl ? safeFetch(ucpCustomUrl, companionFetchOptions) : Promise.reject(new Error('No custom UCP URL')),
   ]);
 
   // Extract robots.txt
@@ -95,26 +126,26 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
   const rawLlmsFull = llmsFullRes.status === 'fulfilled' && llmsFullRes.value.ok ? llmsFullRes.value.text : null;
 
   // Extract UCP Manifest
-  let ucpManifest: UCPManifest | null = null;
+  let rawUcpManifest: unknown = null;
   let ucpLocation: string | undefined;
 
   if (ucpCustomRes.status === 'fulfilled' && ucpCustomRes.value.ok) {
     try {
-      ucpManifest = JSON.parse(ucpCustomRes.value.text);
+      rawUcpManifest = JSON.parse(ucpCustomRes.value.text);
       ucpLocation = ucpCustomUrl;
     } catch {}
   }
 
-  if (!ucpManifest && ucpWkRes.status === 'fulfilled' && ucpWkRes.value.ok) {
+  if (rawUcpManifest === null && ucpWkRes.status === 'fulfilled' && ucpWkRes.value.ok) {
     try {
-      ucpManifest = JSON.parse(ucpWkRes.value.text);
+      rawUcpManifest = JSON.parse(ucpWkRes.value.text);
       ucpLocation = '/.well-known/ucp';
     } catch {}
   }
 
-  if (!ucpManifest && ucpJsonRes.status === 'fulfilled' && ucpJsonRes.value.ok) {
+  if (rawUcpManifest === null && ucpJsonRes.status === 'fulfilled' && ucpJsonRes.value.ok) {
     try {
-      ucpManifest = JSON.parse(ucpJsonRes.value.text);
+      rawUcpManifest = JSON.parse(ucpJsonRes.value.text);
       ucpLocation = '/ucp.json';
     } catch {}
   }
@@ -122,7 +153,21 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
   // Execute all checks
   const allChecks: CheckResult[] = [];
 
-  // Check 0: HTTP & Canonical Status
+  // Check 0: final HTTP response and canonical declaration
+  allChecks.push({
+    id: 'net-001',
+    name: 'HTTP Accessibility',
+    dimension: 'discovery',
+    status: httpStatus >= 200 && httpStatus < 300 ? 'PASS' : 'FAIL',
+    score: httpStatus >= 200 && httpStatus < 300 ? 4 : 0,
+    maxScore: 4,
+    message: `Final audit response returned HTTP ${httpStatus}.`,
+    remediation:
+      httpStatus >= 200 && httpStatus < 300
+        ? undefined
+        : 'Return a successful 2xx response for the canonical audit URL.',
+  });
+
   if (parsedHtml.canonicalUrl) {
     allChecks.push({
       id: 'doc-001',
@@ -165,9 +210,10 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
 
   // 4. UCP Manifest check
   const ucpResult = checkUcpManifest({
-    manifest: ucpManifest,
+    manifest: rawUcpManifest,
     foundLocation: ucpLocation,
   });
+  const ucpManifest = ucpResult.manifest;
   allChecks.push(...ucpResult.checks);
 
   // 5. Machine Payments check
@@ -187,6 +233,7 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
     isLocalFixture: false,
     auditedAt: new Date().toISOString(),
     responseTimeMs,
+    httpStatus,
     score,
     checks: allChecks,
     ucpManifest,
@@ -201,23 +248,24 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
 export async function auditLocalFixture(fixturePath: string, options: AuditOptions = {}): Promise<AuditResult> {
   const startTime = Date.now();
   const resolvedPath = path.resolve(fixturePath);
+  const maxBytes = resolveLocalFileLimit(options.maxResponseBytes);
 
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`Target fixture path does not exist: ${resolvedPath}`);
   }
 
   const stat = fs.statSync(resolvedPath);
-  let baseDir = stat.isDirectory() ? resolvedPath : path.dirname(resolvedPath);
+  const baseDir = stat.isDirectory() ? resolvedPath : path.dirname(resolvedPath);
 
   let rawHtml = '';
   if (stat.isFile()) {
-    rawHtml = fs.readFileSync(resolvedPath, 'utf8');
+    rawHtml = readBoundedTextFile(resolvedPath, maxBytes);
   } else {
     const candidates = ['index.html', 'index.htm', 'home.html'];
     for (const c of candidates) {
       const p = path.join(baseDir, c);
       if (fs.existsSync(p)) {
-        rawHtml = fs.readFileSync(p, 'utf8');
+        rawHtml = readBoundedTextFile(p, maxBytes);
         break;
       }
     }
@@ -229,24 +277,24 @@ export async function auditLocalFixture(fixturePath: string, options: AuditOptio
   let rawRobots: string | null = null;
   const robotsPath = path.join(baseDir, 'robots.txt');
   if (fs.existsSync(robotsPath)) {
-    rawRobots = fs.readFileSync(robotsPath, 'utf8');
+    rawRobots = readBoundedTextFile(robotsPath, maxBytes);
   }
 
   // Read llms.txt & llms-full.txt
   let rawLlms: string | null = null;
   const llmsPath = path.join(baseDir, 'llms.txt');
   if (fs.existsSync(llmsPath)) {
-    rawLlms = fs.readFileSync(llmsPath, 'utf8');
+    rawLlms = readBoundedTextFile(llmsPath, maxBytes);
   }
 
   let rawLlmsFull: string | null = null;
   const llmsFullPath = path.join(baseDir, 'llms-full.txt');
   if (fs.existsSync(llmsFullPath)) {
-    rawLlmsFull = fs.readFileSync(llmsFullPath, 'utf8');
+    rawLlmsFull = readBoundedTextFile(llmsFullPath, maxBytes);
   }
 
   // Read UCP Manifest
-  let ucpManifest: UCPManifest | null = null;
+  let rawUcpManifest: unknown = null;
   let ucpLocation: string | undefined;
 
   const ucpCandidates = [
@@ -258,9 +306,9 @@ export async function auditLocalFixture(fixturePath: string, options: AuditOptio
 
   for (const cand of ucpCandidates) {
     if (fs.existsSync(cand)) {
+      const content = readBoundedTextFile(cand, maxBytes);
       try {
-        const content = fs.readFileSync(cand, 'utf8');
-        ucpManifest = JSON.parse(content);
+        rawUcpManifest = JSON.parse(content);
         ucpLocation = path.relative(baseDir, cand);
         break;
       } catch {}
@@ -312,9 +360,10 @@ export async function auditLocalFixture(fixturePath: string, options: AuditOptio
 
   // 4. UCP Manifest
   const ucpResult = checkUcpManifest({
-    manifest: ucpManifest,
+    manifest: rawUcpManifest,
     foundLocation: ucpLocation,
   });
+  const ucpManifest = ucpResult.manifest;
   allChecks.push(...ucpResult.checks);
 
   // 5. Machine Payments
@@ -398,7 +447,7 @@ export function auditHtml(html: string, options: { baseUrl?: string } = {}): Aud
   };
 }
 
-export function auditManifest(manifest: UCPManifest): AuditResult {
+export function auditManifest(manifest: unknown): AuditResult {
   const startTime = Date.now();
   const allChecks: CheckResult[] = [];
 
@@ -409,7 +458,7 @@ export function auditManifest(manifest: UCPManifest): AuditResult {
   allChecks.push(...ucpResult.checks);
 
   const paymentsResult = checkMachinePayments({
-    manifest,
+    manifest: ucpResult.manifest,
   });
   allChecks.push(...paymentsResult.checks);
 
@@ -417,13 +466,13 @@ export function auditManifest(manifest: UCPManifest): AuditResult {
   const score = calculateScore(allChecks);
 
   return {
-    target: manifest.merchant?.name || 'in-memory-ucp-manifest',
+    target: ucpResult.manifest?.merchant.name || 'in-memory-ucp-manifest',
     isLocalFixture: true,
     auditedAt: new Date().toISOString(),
     responseTimeMs,
     score,
     checks: allChecks,
-    ucpManifest: manifest,
+    ucpManifest: ucpResult.manifest,
     machinePayments: paymentsResult.audit,
   };
 }

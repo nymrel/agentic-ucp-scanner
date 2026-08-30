@@ -9,30 +9,19 @@ const __dirname = path.dirname(__filename);
 
 async function main() {
   const distCli = path.resolve(__dirname, '../dist/cli.js');
-  const srcCli = path.resolve(__dirname, '../src/cli.js');
-
-  let cliModule;
-  if (fs.existsSync(distCli)) {
-    cliModule = await import(pathToFileURL(distCli).href);
-  } else if (fs.existsSync(srcCli)) {
-    // If running under Node with native TS/ESM support or fallback
-    try {
-      cliModule = await import(pathToFileURL(srcCli).href);
-    } catch {
-      console.error('Error: Please build the project with `npm run build` first.');
-      process.exit(1);
-    }
-  } else {
-    console.error('Error: Could not locate cli entrypoint.');
-    process.exit(1);
+  if (!fs.existsSync(distCli)) {
+    throw new Error('Compiled CLI not found. Run `npm run build` before invoking ucp-audit from source.');
   }
 
-  if (cliModule && typeof cliModule.runCli === 'function') {
-    await cliModule.runCli(process.argv);
+  const cliModule = await import(pathToFileURL(distCli).href);
+  if (typeof cliModule.runCli !== 'function') {
+    throw new Error('Compiled CLI does not export runCli().');
   }
+  await cliModule.runCli(process.argv);
 }
 
 main().catch((err) => {
-  console.error('Fatal CLI Error:', err);
-  process.exit(1);
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`Fatal CLI error: ${message}`);
+  process.exitCode = 1;
 });

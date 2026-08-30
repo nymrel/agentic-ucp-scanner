@@ -1,0 +1,113 @@
+name: Release npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Exact 40-character commit on main to publish
+        required: true
+        type: string
+      publish:
+        description: Publish after all verification and provenance steps pass
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish exact candidate
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: npm
+    permissions:
+      attestations: write # Required to persist the build provenance attestation.
+      contents: read
+      id-token: write # Required for GitHub attestation and npm trusted publishing OIDC.
+
+    steps:
+      - name: Validate requested commit format
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'expected_commit must be a lowercase 40-character commit SHA' >&2
+            exit 1
+          fi
+
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.expected_commit }}
+
+      - name: Fence candidate to main
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$EXPECTED_COMMIT" origin/main
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Pin npm
+        # zizmor: ignore[adhoc-packages] -- The release uses the exact reviewed npm CLI named by packageManager; no lifecycle scripts run during this install.
+        run: npm install --global npm@11.19.1
+
+      - name: Refuse an existing package version
+        shell: bash
+        run: |
+          package_name="$(node --input-type=module --eval "import packageJson from './package.json' with { type: 'json' }; process.stdout.write(packageJson.name)")"
+          package_version="$(node --input-type=module --eval "import packageJson from './package.json' with { type: 'json' }; process.stdout.write(packageJson.version)")"
+          if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+            echo "${package_name}@${package_version} already exists; refusing to overwrite release intent" >&2
+            exit 1
+          fi
+
+      - name: Install from lockfile without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Run full acceptance gate
+        run: npm run check
+
+      - name: Build release tarball
+        shell: bash
+        run: |
+          mkdir artifacts
+          npm pack --json --pack-destination artifacts
+          sha256sum artifacts/*.tgz > artifacts/SHA256SUMS
+
+      - name: Attest release tarball
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v3
+        with:
+          subject-path: artifacts/*.tgz
+
+      - name: Upload candidate artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: npm-release-candidate-${{ inputs.expected_commit }}
+          if-no-files-found: error
+          path: |
+            artifacts/*.tgz
+            artifacts/SHA256SUMS
+          retention-days: 30
+
+      - name: Publish with npm trusted publishing and provenance
+        shell: bash
+        run: npm publish artifacts/*.tgz --access public --provenance

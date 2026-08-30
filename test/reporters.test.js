@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTerminalReport } from '../../dist/reporters/terminal.js';
-import { formatMarkdownReport } from '../../dist/reporters/markdown.js';
-import { formatJsonReport } from '../../dist/reporters/json.js';
+import { formatTerminalReport } from '../dist/reporters/terminal.js';
+import { formatMarkdownReport } from '../dist/reporters/markdown.js';
+import { formatJsonReport } from '../dist/reporters/json.js';
 
 const mockResult = {
   target: 'https://test-agent-store.com',
@@ -48,4 +48,20 @@ test('Reporters - JSON output produces valid JSON', () => {
   const parsed = JSON.parse(output);
   assert.equal(parsed.score.totalScore, 95);
   assert.equal(parsed.score.grade, 'A');
+});
+
+test('Reporters neutralize untrusted terminal controls and Markdown table injection', () => {
+  const untrustedResult = structuredClone(mockResult);
+  untrustedResult.target = 'https://example.com/\u001b[31mred\nnext|cell';
+  untrustedResult.checks[0].name = 'Injected\ncheck';
+  untrustedResult.checks[0].message = 'value | forged | row\u001b[2J';
+
+  const terminal = formatTerminalReport(untrustedResult, { noColor: true });
+  assert.equal(terminal.includes('\u001b'), false);
+  assert.equal(terminal.includes('Injected\ncheck'), false);
+
+  const markdown = formatMarkdownReport(untrustedResult);
+  assert.equal(markdown.includes('value | forged | row'), false);
+  assert.ok(markdown.includes('value &#124; forged &#124; row'));
+  assert.equal(markdown.includes('<script'), false);
 });
