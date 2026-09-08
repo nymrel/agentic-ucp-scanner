@@ -4,33 +4,39 @@ Thank you for your interest in improving `agentic-ucp-scanner`! We welcome contr
 
 ## Philosophy
 
-`agentic-ucp-scanner` adheres to the **Dual-Audience Rule**: Every tool and interface must provide clean, accessible ergonomics for humans while enabling 100% deterministic, high-trust structured interactions for autonomous AI agents.
+`agentic-ucp-scanner` follows a dual-audience principle: evidence should be understandable to human operators and safely consumable by automated systems.
 
 ## Core Rules
 
-1. **Zero External Runtime Dependencies**: All scanning, parsing, scoring, and reporting must operate on native Node.js standard libraries (`fetch`, `node:fs`, `node:url`, etc.). Dev dependencies are restricted to TypeScript and type definitions.
-2. **Deterministic Scoring**: Given the exact same HTML, headers, robots.txt, llms.txt, and UCP manifest, the score (0-100) must compute identically.
-3. **Graceful Degradation**: Network timeouts, malformed HTML, and partial manifests must never throw unhandled exceptions.
+1. **Zero external runtime dependencies**: scanning, parsing, scoring, and reporting use maintained Node.js standard-library APIs. Development dependencies stay minimal, exact, and lockfile-pinned.
+2. **Deterministic captured-input scoring**: identical captured HTML, headers, `robots.txt`, `llms.txt`, and manifest inputs must compute the same score. Live network responses are not assumed stable.
+3. **Fail-closed network handling**: target admission, redirects, headers, deadlines, and body sizes remain bounded. New remote fetch paths require explicit adversarial tests.
+4. **Safe output**: untrusted target content must not inject terminal control sequences, Markdown structure, workflow commands, or logs.
 
 ## Development Workflow
 
 1. Fork and clone the repository.
-2. Ensure you have Node.js 18+ installed.
-3. Compile TypeScript:
+2. Use a maintained Node.js major listed in `package.json` (22, 24, or 26) and npm 11.
+3. Install from the lockfile without lifecycle scripts:
    ```bash
-   npm run build
+   npm ci --ignore-scripts
    ```
-4. Run tests:
+4. Run the complete local gate:
    ```bash
-   npm test
+   npm run check
    ```
-5. Run the CLI locally:
+5. Generate a coverage report when changing scanner or security behavior:
+   ```bash
+   npm run test:coverage
+   ```
+6. Run the CLI locally:
    ```bash
    node ./bin/ucp-audit.js --mock perfect
    ```
 
 ## Pull Request Guidelines
 
-- Ensure tests pass with 100% green status.
+- Keep `npm run check` green on a maintained Node.js runtime.
 - Add test fixtures in `test/fixtures/` for any new check or edge case.
 - Update `README.md` and `llms.txt` if new CLI flags or public APIs are added.
+- Never weaken URL admission or publication gates to make a test pass.

@@ -1,17 +1,19 @@
 # agentic-ucp-scanner
-> Zero-dependency Node.js/TypeScript CLI and library to audit websites and fixtures for AI Agent Commerce Readiness (UCP, JSON-LD Machine Trust, robots.txt, llms.txt, Schema.org, and Autonomous Payments).
+> Zero-runtime-dependency Node.js/TypeScript CLI and library for inspecting websites and local fixtures for machine-readable commerce signals.
 
 ## System Information
-- Author: Nymrel / JalenBuilds LLC
+- Project: Nymrel
 - Repository: https://github.com/nymrel/agentic-ucp-scanner
-- Runtime: Node.js >= 18.0.0 (Zero external runtime dependencies)
+- Runtime: maintained Node.js 22, 24, or 26; npm 11 for development
+- Registry status: not published to npm as of 2026-08-30
+- Runtime dependencies: zero
 - License: MIT
 
 ## Core Capabilities
 - `auditUrl(url, options)`: Crawls a live URL multi-pass for HTML, robots.txt, llms.txt, and UCP manifests.
 - `auditHtml(html, options)`: Audits raw HTML markup, extracting JSON-LD graphs, meta tags, and payment directives.
-- `auditManifest(manifest)`: Validates Universal Commerce Protocol (UCP) JSON manifests.
-- `calculateScore(auditResult)`: Computes deterministic 0-100 score across 5 weighted dimensions.
+- `auditManifest(manifest)`: Checks a manifest against this project's UCP-oriented input profile.
+- `calculateScore(checks)`: Computes the project-defined deterministic 0-100 diagnostic score across five weighted dimensions.
 
 ## Scoring Dimensions (100 pts total)
 1. **Discovery & Orientation** (20 pts): `llms.txt`, `llms-full.txt`, sitemap, canonical links.
@@ -22,9 +24,12 @@
 
 ## CLI Reference
 ```bash
-npx agentic-ucp-scanner <url-or-fixture-path> [options]
-ucp-audit https://example.com --format json
-ucp-audit ./test/fixtures/perfect-agent-store --format terminal
+git clone https://github.com/nymrel/agentic-ucp-scanner.git
+cd agentic-ucp-scanner
+npm ci --ignore-scripts
+npm run check
+node ./bin/ucp-audit.js https://example.com --format json
+node ./bin/ucp-audit.js ./test/fixtures/perfect-agent-store --format terminal
 ```
 
 ## Flags
@@ -33,4 +38,11 @@ ucp-audit ./test/fixtures/perfect-agent-store --format terminal
 - `--min-score`: Exit with code 1 if score < threshold (useful for CI/CD gates).
 - `--mock`: Run against built-in fixtures (`perfect`, `partial`, `hostile`).
 - `--timeout`: Network timeout in ms (default: 10000).
+- `--max-response-bytes`: Maximum bytes accepted per remote or local file (default: 2097152; maximum: 16777216).
+- `--max-redirects`: Maximum redirects per request (default: 5; maximum: 10).
 - `--no-color`: Disable ANSI color output.
+
+## Interpretation Boundary
+- Scores and grades are heuristics from implemented checks, not certification, security assessment, protocol conformance, ranking guarantee, traffic proof, or transaction proof.
+- Remote targets, redirects, DNS answers, headers, and response bodies are treated as untrusted and bounded.
+- Terminal and Markdown reporters neutralize control and structural injection from target-supplied content.

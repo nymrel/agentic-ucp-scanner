@@ -109,17 +109,22 @@ function generateScoreSummary(
   grade: Grade,
   dimensions: Record<DimensionKey, DimensionScore>
 ): string {
+  const lowestDimension = (Object.values(dimensions) as DimensionScore[]).reduce(
+    (lowest, current) => (current.percentage < lowest.percentage ? current : lowest)
+  );
+  const context = `Grade ${grade} (${score}/100). Lowest dimension: ${lowestDimension.name} (${lowestDimension.percentage}%).`;
+
   if (grade === 'A') {
-    return 'Full Agent-Native Autonomous Readiness. High machine trust, structured offers, and active agent commerce rails.';
+    return `Strong agent-oriented readiness signals across the implemented checks. ${context}`;
   }
   if (grade === 'B') {
-    return 'Agent-Friendly Platform. Strong structured data and crawler access; minor improvements needed in autonomous checkout or UCP endpoints.';
+    return `Good agent-oriented readiness signals with targeted gaps remaining. ${context}`;
   }
   if (grade === 'C') {
-    return 'Partial AI Readiness. Basic JSON-LD or meta tags present, but missing dedicated agent manifests (UCP, llms.txt) or machine payment rails.';
+    return `Partial readiness signals; material machine-readable commerce gaps remain. ${context}`;
   }
   if (grade === 'D') {
-    return 'Legacy Web Structure. Site is primarily human-oriented with minimal machine readability, missing schema, or restrictive crawler settings.';
+    return `Limited readiness signals across the implemented checks. ${context}`;
   }
-  return 'Agent-Hostile / Opaque. Missing core machine trust metadata, blocked crawlers, or zero machine-readable commerce interfaces.';
+  return `Few readiness signals were detected; inspect failures before drawing conclusions. ${context}`;
 }

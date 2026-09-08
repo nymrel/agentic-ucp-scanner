@@ -10,7 +10,7 @@ test('Machine Payments - x402 Header & Manifest Support', () => {
     manifest: {
       ucpVersion: '1.0',
       merchant: { name: 'Apex' },
-      agentEndpoints: { checkout: '/checkout' },
+      agentEndpoints: { checkout: 'https://apex.example/checkout' },
       paymentCapabilities: {
         protocols: ['x402', 'ap2', 'solana_pay'],
         x402Enabled: true,
@@ -29,4 +29,19 @@ test('Machine Payments - x402 Header & Manifest Support', () => {
 
   assert.ok(x402Check && x402Check.status === 'PASS');
   assert.ok(railsCheck && railsCheck.status === 'PASS');
+});
+
+test('Machine Payments - Invalid direct manifest input is ignored without throwing', () => {
+  const result = checkMachinePayments({
+    manifest: {
+      ucpVersion: '1.0',
+      merchant: { name: 'Unsafe' },
+      agentEndpoints: { checkout: 'file:///etc/passwd' },
+      paymentCapabilities: { protocols: 'x402' },
+    },
+  });
+
+  assert.equal(result.audit.x402Supported, false);
+  assert.equal(result.audit.ucpCheckoutSupported, false);
+  assert.ok(result.audit.issues.some((issue) => issue.startsWith('Manifest ignored:')));
 });

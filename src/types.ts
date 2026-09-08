@@ -170,9 +170,8 @@ export interface AuditOptions {
   timeoutMs?: number;
   userAgent?: string;
   headers?: Record<string, string>;
-  offline?: boolean;
-  baseUrl?: string;
-  followRedirects?: boolean;
+  maxResponseBytes?: number;
+  maxRedirects?: number;
 }
 
 export interface AuditResult {
@@ -180,6 +179,7 @@ export interface AuditResult {
   isLocalFixture: boolean;
   auditedAt: string;
   responseTimeMs: number;
+  httpStatus?: number;
   score: AuditScore;
   checks: CheckResult[];
   ucpManifest?: UCPManifest | null;
@@ -200,6 +200,8 @@ export interface CliOptions {
   minScore?: number;
   mock?: 'perfect' | 'partial' | 'hostile' | string;
   timeout: number;
+  maxResponseBytes: number;
+  maxRedirects: number;
   noColor: boolean;
   verbose: boolean;
 }

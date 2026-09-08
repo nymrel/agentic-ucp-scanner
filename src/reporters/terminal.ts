@@ -10,25 +10,70 @@ export interface TerminalReporterOptions {
   verbose?: boolean;
 }
 
+function sanitizeTerminalText(value: unknown): string {
+  const text = String(value);
+  const visible: string[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== '\u001b') {
+      visible.push(text[index]);
+      continue;
+    }
+    if (text[index + 1] === ']') {
+      // Consume OSC once, including incomplete strings; never rescan its body.
+      index += 2;
+      while (index < text.length && text[index] !== '\u0007') {
+        if (text[index] === '\u001b' && text[index + 1] === '\\') {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+    } else if (text[index + 1] === '[') {
+      index += 2;
+      while (index < text.length) {
+        const code = text.charCodeAt(index);
+        if (code >= 0x40 && code <= 0x7e) break;
+        index += 1;
+      }
+    }
+  }
+  return visible.join('')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .replace(/[\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatDetails(details: Record<string, unknown>): string {
+  try {
+    return sanitizeTerminalText(JSON.stringify(details)).slice(0, 500);
+  } catch {
+    return '[unserializable details]';
+  }
+}
+
 export function formatTerminalReport(result: AuditResult, options: TerminalReporterOptions = {}): string {
   const noColor = options.noColor || !!process.env.NO_COLOR;
   const c = createColorizer(noColor);
 
-  const { score, checks, target, responseTimeMs, ucpManifest, jsonLd, robotsTxt } = result;
+  const { score, checks, target, responseTimeMs, ucpManifest, jsonLd } = result;
 
   const lines: string[] = [];
 
   // Header Banner
   lines.push('');
   lines.push(c.cyan('╔═══════════════════════════════════════════════════════════════════════════╗'));
-  lines.push(c.cyan('║') + '  ' + c.bold(c.white('NYMREL AGENTIC COMMERCE AUDIT')) + '  ' + c.dim('//  Universal Commerce Protocol (UCP)') + '  ' + c.cyan('║'));
+  lines.push(c.cyan('║') + '  ' + c.bold(c.white('NYMREL AGENTIC COMMERCE AUDIT')) + '  ' + c.dim('//  UCP-oriented diagnostic model') + '  ' + c.cyan('║'));
   lines.push(c.cyan('╚═══════════════════════════════════════════════════════════════════════════╝'));
   lines.push('');
 
   // Target Metadata
-  lines.push(`  ${c.dim('Target:')}       ${c.bold(target)}`);
+  lines.push(`  ${c.dim('Target:')}       ${c.bold(sanitizeTerminalText(target))}`);
   lines.push(`  ${c.dim('Audited At:')}   ${result.auditedAt} ${c.dim(`(${responseTimeMs}ms)`)}`);
-  lines.push(`  ${c.dim('Engine:')}       agentic-ucp-scanner v1.0.0 (Zero-dep Node.js)`);
+  if (result.httpStatus !== undefined) {
+    lines.push(`  ${c.dim('HTTP Status:')}  ${result.httpStatus}`);
+  }
+  lines.push(`  ${c.dim('Engine:')}       agentic-ucp-scanner (zero runtime dependencies)`);
   lines.push('');
 
   // Score & Grade Card
@@ -38,7 +83,7 @@ export function formatTerminalReport(result: AuditResult, options: TerminalRepor
   lines.push(c.dim('┌───────────────────────────────────────────────────────────────────────────┐'));
   lines.push(`│  ${c.bold('OVERALL AGENT READINESS SCORE:')}  ${c.bold(c.white(`${score.totalScore}/100`))}  ${gradeBadge}      ${scoreBar}  │`);
   lines.push(`│  ${c.dim('Machine Trust Index:')}  ${c.bold(c.green(score.machineTrustIndex.toFixed(2)))} / 1.00                                            │`);
-  lines.push(`│  ${c.italic(score.summary.padEnd(73).slice(0, 73))}│`);
+  lines.push(`│  ${c.italic(sanitizeTerminalText(score.summary).padEnd(73).slice(0, 73))}│`);
   lines.push(c.dim('└───────────────────────────────────────────────────────────────────────────┘'));
   lines.push('');
 
@@ -67,16 +112,16 @@ export function formatTerminalReport(result: AuditResult, options: TerminalRepor
   if (jsonLd?.organizations.length || ucpManifest) {
     lines.push(c.bold('  MACHINE TRUST ENTITY GRAPH:'));
     if (ucpManifest?.merchant) {
-      lines.push(`   • ${c.dim('Merchant:')} ${ucpManifest.merchant.name} ${ucpManifest.merchant.legalName ? c.dim(`(${ucpManifest.merchant.legalName})`) : ''}`);
+      lines.push(`   • ${c.dim('Merchant:')} ${sanitizeTerminalText(ucpManifest.merchant.name)} ${ucpManifest.merchant.legalName ? c.dim(`(${sanitizeTerminalText(ucpManifest.merchant.legalName)})`) : ''}`);
       if (ucpManifest.merchant.parentEntity) {
-        lines.push(`   • ${c.dim('Parent Entity Provenance:')} ${c.green(ucpManifest.merchant.parentEntity)}`);
+        lines.push(`   • ${c.dim('Parent Entity Provenance:')} ${c.green(sanitizeTerminalText(ucpManifest.merchant.parentEntity))}`);
       }
     }
     if (jsonLd?.parentOrgChain.length) {
-      lines.push(`   • ${c.dim('Schema.org Lineage:')} ${jsonLd.parentOrgChain.join('  ⟶  ')}`);
+      lines.push(`   • ${c.dim('Schema.org Lineage:')} ${sanitizeTerminalText(jsonLd.parentOrgChain.join('  ⟶  '))}`);
     }
     if (ucpManifest?.paymentCapabilities?.protocols.length) {
-      lines.push(`   • ${c.dim('Active Protocols:')} ${c.cyan(ucpManifest.paymentCapabilities.protocols.join(', '))}`);
+      lines.push(`   • ${c.dim('Declared Protocols:')} ${c.cyan(sanitizeTerminalText(ucpManifest.paymentCapabilities.protocols.join(', ')))}`);
     }
     lines.push('');
   }
@@ -88,11 +133,14 @@ export function formatTerminalReport(result: AuditResult, options: TerminalRepor
   for (const check of checks) {
     const statusBadge = formatStatusBadge(check.status, c);
     const pointsStr = `[${check.score}/${check.maxScore} pts]`.padStart(12);
-    lines.push(`   ${statusBadge}  ${c.bold(check.name.padEnd(38))} ${c.dim(pointsStr)}`);
-    lines.push(`       ${c.dim('↳')} ${check.message}`);
+    lines.push(`   ${statusBadge}  ${c.bold(sanitizeTerminalText(check.name).padEnd(38).slice(0, 38))} ${c.dim(pointsStr)}`);
+    lines.push(`       ${c.dim('↳')} ${sanitizeTerminalText(check.message)}`);
 
     if (check.status !== 'PASS' && check.remediation) {
-      lines.push(`       ${c.yellow('💡 Action:')} ${c.italic(check.remediation)}`);
+      lines.push(`       ${c.yellow('💡 Action:')} ${c.italic(sanitizeTerminalText(check.remediation))}`);
+    }
+    if (options.verbose && check.details) {
+      lines.push(`       ${c.dim('Details:')} ${formatDetails(check.details)}`);
     }
     lines.push('');
   }
@@ -100,9 +148,9 @@ export function formatTerminalReport(result: AuditResult, options: TerminalRepor
   // Footer Recommendation
   const failedOrWarned = checks.filter((ch) => ch.status === 'FAIL' || ch.status === 'WARN');
   if (failedOrWarned.length > 0) {
-    lines.push(c.yellow(`  ⚠️  ${failedOrWarned.length} actionable optimization(s) found to elevate Machine Trust and Agent Readiness.`));
+    lines.push(c.yellow(`  ⚠️  ${failedOrWarned.length} potential gap(s) found within the implemented checks.`));
   } else {
-    lines.push(c.green('  ✅  100% Agent-Native Readiness verified across all dimensions.'));
+    lines.push(c.green('  ✅  No warnings or failures were found within the implemented checks.'));
   }
   lines.push('');
 

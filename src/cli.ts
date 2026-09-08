@@ -3,22 +3,47 @@
  */
 
 import * as fs from 'node:fs';
+import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CliOptions, ReporterFormat } from './types.js';
-import { auditLocalFixture, runAudit } from './scanner.js';
+import { runAudit } from './scanner.js';
 import { formatTerminalReport } from './reporters/terminal.js';
 import { formatMarkdownReport } from './reporters/markdown.js';
 import { formatJsonReport } from './reporters/json.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+const packageMetadata = require('../package.json') as { version: string };
+const PACKAGE_VERSION = packageMetadata.version;
+
+function requiredOptionValue(args: string[], index: number, flag: string): string {
+  const value = args[index + 1];
+  if (value === undefined) {
+    throw new TypeError(`${flag} requires a value.`);
+  }
+  return value;
+}
+
+function parseBoundedInteger(value: string, flag: string, minimum: number, maximum: number): number {
+  if (!/^\d+$/.test(value)) {
+    throw new TypeError(`${flag} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new TypeError(`${flag} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return parsed;
+}
 
 export function parseCliArgs(argv: string[]): CliOptions {
   const args = argv.slice(2);
   const options: CliOptions = {
     format: 'terminal',
     timeout: 10000,
+    maxResponseBytes: 2 * 1024 * 1024,
+    maxRedirects: 5,
     noColor: false,
     verbose: false,
   };
@@ -33,24 +58,46 @@ export function parseCliArgs(argv: string[]): CliOptions {
       printVersion();
       process.exit(0);
     } else if (arg === '--format' || arg === '-f') {
-      const fmt = args[++i]?.toLowerCase() as ReporterFormat;
+      const fmt = requiredOptionValue(args, i, arg).toLowerCase() as ReporterFormat;
+      i++;
       if (fmt === 'terminal' || fmt === 'json' || fmt === 'markdown') {
         options.format = fmt;
+      } else {
+        throw new TypeError(`${arg} must be one of: terminal, json, markdown.`);
       }
     } else if (arg === '--output' || arg === '-o') {
-      options.output = args[++i];
+      options.output = requiredOptionValue(args, i, arg);
+      i++;
     } else if (arg === '--min-score') {
-      options.minScore = parseInt(args[++i], 10);
+      options.minScore = parseBoundedInteger(requiredOptionValue(args, i, arg), arg, 0, 100);
+      i++;
     } else if (arg === '--mock') {
-      options.mock = args[++i] || 'perfect';
+      options.mock = requiredOptionValue(args, i, arg);
+      i++;
     } else if (arg === '--timeout') {
-      options.timeout = parseInt(args[++i], 10);
+      options.timeout = parseBoundedInteger(requiredOptionValue(args, i, arg), arg, 1, 60000);
+      i++;
+    } else if (arg === '--max-response-bytes') {
+      options.maxResponseBytes = parseBoundedInteger(
+        requiredOptionValue(args, i, arg),
+        arg,
+        1,
+        16 * 1024 * 1024
+      );
+      i++;
+    } else if (arg === '--max-redirects') {
+      options.maxRedirects = parseBoundedInteger(requiredOptionValue(args, i, arg), arg, 0, 10);
+      i++;
     } else if (arg === '--no-color') {
       options.noColor = true;
     } else if (arg === '--verbose') {
       options.verbose = true;
-    } else if (!arg.startsWith('-') && !options.target) {
+    } else if (arg.startsWith('-')) {
+      throw new TypeError(`Unknown option: ${arg}`);
+    } else if (!options.target) {
       options.target = arg;
+    } else {
+      throw new TypeError(`Unexpected extra target: ${arg}`);
     }
   }
 
@@ -58,7 +105,14 @@ export function parseCliArgs(argv: string[]): CliOptions {
 }
 
 export async function runCli(argv: string[]): Promise<void> {
-  const options = parseCliArgs(argv);
+  let options: CliOptions;
+  try {
+    options = parseCliArgs(argv);
+  } catch (err: unknown) {
+    console.error(`Argument error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 2;
+    return;
+  }
 
   let target = options.target;
 
@@ -86,7 +140,8 @@ export async function runCli(argv: string[]): Promise<void> {
 
     if (!foundFixture) {
       console.error(`Error: Mock fixture "${options.mock}" not found.`);
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     target = foundFixture;
   }
@@ -94,12 +149,15 @@ export async function runCli(argv: string[]): Promise<void> {
   if (!target) {
     console.error('Error: No target URL or fixture path specified.\n');
     printHelp();
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   try {
     const result = await runAudit(target, {
       timeoutMs: options.timeout,
+      maxResponseBytes: options.maxResponseBytes,
+      maxRedirects: options.maxRedirects,
     });
 
     let output = '';
@@ -128,28 +186,28 @@ export async function runCli(argv: string[]): Promise<void> {
       console.error(
         `\nAudit failed: Score ${result.score.totalScore}/100 is below the required threshold of ${options.minScore}/100.`
       );
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
 
-    process.exit(0);
+    process.exitCode = 0;
   } catch (err: unknown) {
     console.error(`Execution error: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
 function printVersion(): void {
-  console.log('agentic-ucp-scanner v1.0.0');
+  console.log(`agentic-ucp-scanner v${PACKAGE_VERSION}`);
 }
 
 function printHelp(): void {
   console.log(`
-agentic-ucp-scanner v1.0.0
-Audits websites and local fixtures for AI Agent Commerce Readiness & Machine Trust.
+agentic-ucp-scanner v${PACKAGE_VERSION}
+Inspects websites and local fixtures for machine-readable commerce signals.
 
 USAGE:
   ucp-audit <url-or-path> [options]
-  npx agentic-ucp-scanner <url-or-path> [options]
 
 ARGUMENTS:
   <url-or-path>        The live URL or local fixture directory/file to audit.
@@ -160,6 +218,8 @@ OPTIONS:
   --min-score <0-100>  Exit with code 1 if total score is below this threshold (CI gate).
   --mock <name>        Run against built-in mock fixtures: perfect, partial, hostile.
   --timeout <ms>       Network request timeout in milliseconds (default: 10000).
+  --max-response-bytes Maximum bytes accepted per remote or local file (default: 2097152).
+  --max-redirects <n>  Maximum HTTP redirects per request (default: 5).
   --no-color           Disable ANSI styling for plain text / headless environments.
   --verbose            Display detailed debug diagnostics during execution.
   -v, --version        Show version number.
