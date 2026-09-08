@@ -65,3 +65,14 @@ test('Reporters neutralize untrusted terminal controls and Markdown table inject
   assert.ok(markdown.includes('value &#124; forged &#124; row'));
   assert.equal(markdown.includes('<script'), false);
 });
+
+test('Terminal sanitizer consumes repeated and unterminated OSC sequences without rescanning', () => {
+  for (const tail of ['\u0007after', '\u001b\\after', '']) {
+    const result = structuredClone(mockResult);
+    result.target = 'before' + '\u001b]'.repeat(100_000) + tail;
+    const output = formatTerminalReport(result, { noColor: true });
+    assert.equal(output.includes('\u001b'), false);
+    assert.ok(output.includes(tail ? 'beforeafter' : 'before'));
+    assert.ok(output.length < 10_000);
+  }
+});

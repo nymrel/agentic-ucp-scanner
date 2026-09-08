@@ -11,8 +11,33 @@ export interface TerminalReporterOptions {
 }
 
 function sanitizeTerminalText(value: unknown): string {
-  return String(value)
-    .replace(/\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\))/g, '')
+  const text = String(value);
+  const visible: string[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== '\u001b') {
+      visible.push(text[index]);
+      continue;
+    }
+    if (text[index + 1] === ']') {
+      // Consume OSC once, including incomplete strings; never rescan its body.
+      index += 2;
+      while (index < text.length && text[index] !== '\u0007') {
+        if (text[index] === '\u001b' && text[index + 1] === '\\') {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+    } else if (text[index + 1] === '[') {
+      index += 2;
+      while (index < text.length) {
+        const code = text.charCodeAt(index);
+        if (code >= 0x40 && code <= 0x7e) break;
+        index += 1;
+      }
+    }
+  }
+  return visible.join('')
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
     .replace(/[\u202a-\u202e\u2066-\u2069]/g, '')
     .replace(/\s+/g, ' ')
