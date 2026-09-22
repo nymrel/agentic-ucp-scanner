@@ -17,6 +17,9 @@ if (Object.keys(packageJson.dependencies ?? {}).length !== 0) {
 if (packageJson.bin?.['ucp-audit'] !== './bin/ucp-audit.js') {
   throw new Error('The ucp-audit binary contract is missing or changed.');
 }
+if (packageJson.bin?.['agentic-ucp-scanner'] !== './bin/ucp-audit.js') {
+  throw new Error('The agentic-ucp-scanner npx alias binary contract is missing or changed.');
+}
 if (packageJson.exports?.['.']?.import !== './dist/index.js') {
   throw new Error('The ESM package export must resolve to ./dist/index.js.');
 }
