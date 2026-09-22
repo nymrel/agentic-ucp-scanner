@@ -36,7 +36,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "ucp-audit": "./bin/ucp-audit.js"
+    "ucp-audit": "./bin/ucp-audit.js",
+    "agentic-ucp-scanner": "./bin/ucp-audit.js"
   },
   "files": [
     "bin",
