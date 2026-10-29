@@ -16,7 +16,7 @@ Thank you for your interest in improving `agentic-ucp-scanner`! We welcome contr
 ## Development Workflow
 
 1. Fork and clone the repository.
-2. Use a maintained Node.js major listed in `package.json` (22, 24, or 26) and npm 11.
+2. Use a maintained Node.js major listed in `package.json` (22, 24, or 26) and npm 11 or 12. CI uses the exact npm version in `packageManager`.
 3. Install from the lockfile without lifecycle scripts:
    ```bash
    npm ci --ignore-scripts
