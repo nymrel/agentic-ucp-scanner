@@ -68,7 +68,7 @@ jobs:
 
       - name: Pin npm
         # zizmor: ignore[adhoc-packages] -- The release uses the exact reviewed npm CLI named by packageManager; no lifecycle scripts run during this install.
-        run: npm install --global npm@11.19.1
+        run: npm install --global npm@12.0.2
 
       - name: Refuse an existing package version
         shell: bash

@@ -43,9 +43,18 @@ try {
 } catch (error) {
   throw new Error(`npm pack returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
 }
-const artifact = report[0];
-if (!artifact || !Array.isArray(artifact.files)) {
-  throw new Error('npm pack did not return an artifact file manifest.');
+// npm 11 returns an array; npm 12 keys the same manifest by package name.
+// This command packs one local package, so extra or mismatched artifacts fail.
+const artifacts = Array.isArray(report)
+  ? report
+  : report && typeof report === 'object' && Object.keys(report).length === 1 &&
+      Object.hasOwn(report, packageJson.name)
+    ? [report[packageJson.name]]
+    : [];
+const artifact = artifacts.length === 1 ? artifacts[0] : null;
+if (!artifact || artifact.name !== packageJson.name || artifact.version !== packageJson.version ||
+    !Array.isArray(artifact.files)) {
+  throw new Error('npm pack did not return one matching artifact file manifest.');
 }
 
 const files = artifact.files.map(({ path }) => String(path).replace(/\\/g, '/'));
