@@ -75,3 +75,14 @@ test('JSON-LD - Accepts exact terms and full Schema.org type IRIs', () => {
   assert.equal(result.audit.offers.length, 1);
   assert.equal(result.audit.websites.length, 1);
 });
+
+test('JSON-LD - Does not guess compact IRI namespace mappings', () => {
+  for (const namespace of ['https://schema.org/', 'https://example.com/']) {
+    const result = checkJsonLd({ rawJsonLdStrings: [JSON.stringify({
+      '@context': { schema: namespace },
+      '@type': 'schema:Organization',
+      name: 'Synthetic',
+    })] });
+    assert.equal(result.audit.organizations.length, 0);
+  }
+});
