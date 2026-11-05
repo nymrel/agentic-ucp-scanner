@@ -84,5 +84,13 @@ test('JSON-LD - Does not guess compact IRI namespace mappings', () => {
       name: 'Synthetic',
     })] });
     assert.equal(result.audit.organizations.length, 0);
+    assert.match(result.audit.issues.join(' '), /context expansion is unsupported/);
+    for (const id of ['jld-002', 'jld-003', 'jld-004']) {
+      const check = result.checks.find((item) => item.id === id);
+      assert.match(check.message, /missing type matches do not establish that schema is absent/);
+      assert.deepEqual(check.details.unexpandedCompactTypes, ['schema:Organization']);
+      assert.notEqual(check.status, 'FAIL');
+      assert.equal(check.score, 0);
+    }
   }
 });

@@ -69,6 +69,16 @@ export function checkJsonLd(input: JsonLdCheckInput): {
   const { rawJsonLdStrings } = input;
   const { validNodes, invalidCount, errors } = extractJsonLdNodes(rawJsonLdStrings);
 
+  const unexpandedCompactTypes = [...new Set(validNodes.flatMap((node) => {
+    const types = Array.isArray(node['@type']) ? node['@type'] : [node['@type']];
+    return types.filter((type): type is string =>
+      typeof type === 'string' && /^[A-Za-z][A-Za-z0-9_.-]*:[^/:]/.test(type)
+    );
+  }))];
+  const contextNotice = unexpandedCompactTypes.length > 0
+    ? `Unexpanded compact type IRIs: ${unexpandedCompactTypes.join(', ')}. JSON-LD context expansion is unsupported; missing type matches do not establish that schema is absent.`
+    : undefined;
+
   const orgs: JsonLdNode[] = [];
   const products: JsonLdNode[] = [];
   const offers: JsonLdNode[] = [];
@@ -256,6 +266,18 @@ export function checkJsonLd(input: JsonLdCheckInput): {
         : undefined,
   });
 
+  if (contextNotice) {
+    for (const check of checks) {
+      if (check.id === 'jld-001') continue;
+      if (check.status === 'FAIL') {
+        check.status = 'WARN';
+        check.message = 'No supported type matched this bounded check; context-qualified data may be unrecognized.';
+      }
+      check.message += ` ${contextNotice}`;
+      check.details = { ...check.details, unexpandedCompactTypes };
+    }
+  }
+
   const audit: JsonLdAudit = {
     scriptCount: rawJsonLdStrings.length,
     validNodes: validNodes.length,
@@ -268,7 +290,7 @@ export function checkJsonLd(input: JsonLdCheckInput): {
     hasParentOrg,
     parentOrgChain: parentChain,
     hasLegalEntityDetails: hasLegalDetails,
-    issues: errors,
+    issues: contextNotice ? [...errors, contextNotice] : errors,
   };
 
   return { audit, checks };
