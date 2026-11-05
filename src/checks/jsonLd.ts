@@ -52,13 +52,13 @@ function flattenAndCollect(obj: JsonLdNode, list: JsonLdNode[]): void {
 
 function matchesType(node: JsonLdNode, targetType: string): boolean {
   const typeVal = node['@type'];
-  if (typeof typeVal === 'string') {
-    return typeVal.toLowerCase().includes(targetType.toLowerCase());
-  }
-  if (Array.isArray(typeVal)) {
-    return typeVal.some((t) => typeof t === 'string' && t.toLowerCase().includes(targetType.toLowerCase()));
-  }
-  return false;
+  const types = Array.isArray(typeVal) ? typeVal : [typeVal];
+  const expected = targetType.toLowerCase();
+  return types.some((type) => {
+    if (typeof type !== 'string') return false;
+    const term = type.replace(/^https?:\/\/schema\.org\//i, '');
+    return term.toLowerCase() === expected;
+  });
 }
 
 export function checkJsonLd(input: JsonLdCheckInput): {

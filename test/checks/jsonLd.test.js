@@ -49,3 +49,29 @@ test('JSON-LD - Comprehensive Organization & Product Offers', () => {
   assert.ok(orgCheck && orgCheck.status === 'PASS');
   assert.ok(offerCheck && offerCheck.status === 'PASS');
 });
+
+test('JSON-LD - Rejects unrelated type names containing Schema.org terms', () => {
+  const result = checkJsonLd({ rawJsonLdStrings: [JSON.stringify([
+    { '@type': 'NotAnOrganization', name: 'Synthetic', parentOrganization: 'Synthetic parent' },
+    { '@type': 'ProductReview', name: 'Synthetic review' },
+    { '@type': 'https://example.com/Offer', price: '1', priceCurrency: 'USD' },
+    { '@type': ['UnknownWebSiteType', 'CustomerService'], potentialAction: {} },
+  ])] });
+  assert.equal(result.audit.organizations.length, 0);
+  assert.equal(result.audit.products.length, 0);
+  assert.equal(result.audit.offers.length, 0);
+  assert.equal(result.audit.websites.length, 0);
+});
+
+test('JSON-LD - Accepts exact terms and full Schema.org type IRIs', () => {
+  const result = checkJsonLd({ rawJsonLdStrings: [JSON.stringify([
+    { '@type': ['Unknown', 'https://schema.org/Organization'], name: 'Synthetic' },
+    { '@type': 'http://schema.org/Product', name: 'Synthetic product' },
+    { '@type': 'Offer', price: '1', priceCurrency: 'USD' },
+    { '@type': 'WebSite' },
+  ])] });
+  assert.equal(result.audit.organizations.length, 1);
+  assert.equal(result.audit.products.length, 1);
+  assert.equal(result.audit.offers.length, 1);
+  assert.equal(result.audit.websites.length, 1);
+});
