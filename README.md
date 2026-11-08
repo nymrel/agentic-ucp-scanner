@@ -267,11 +267,13 @@ The scanner accepts the project profile below and the **Nymrel `open-ucp` packag
 and `paymentRails`). This compatibility does not establish conformance with an
 external commerce protocol or prove that checkout works.
 
-Remote discovery also checks `/.well-known/ucp.json`, the path published by the
-Open UCP adapters. Local directory audits check `.well-known/ucp.json` too. Existing
-locations retain their selection precedence. Inputs with scanner project fields
-use the existing profile, preserving unrelated extra metadata. The additional remote read uses the same URL, DNS,
-redirect, timeout and response-size guards and receives no caller credentials.
+Discovery retains the current scanner behavior: a linked remote manifest takes
+priority, followed by `/.well-known/ucp.json` and the legacy paths. Local fixtures
+prefer `.well-known/ucp.json`. An unsupported selected schema is reported as such;
+the scanner does not silently substitute a lower-priority manifest. Inputs with
+scanner project fields use the existing profile, preserving unrelated extra
+metadata. All remote reads use the existing URL, DNS, redirect, timeout and
+response-size guards; companion reads receive no caller credentials.
 
 For Open UCP inputs, `auditManifest`, `auditUrl` and `auditLocalFixture` return a
 normalized `ucpManifest` in this scanner's project shape. The `ucp-001` check's

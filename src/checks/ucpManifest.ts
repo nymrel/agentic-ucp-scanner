@@ -148,9 +148,9 @@ export function checkUcpManifest(input: UcpManifestCheckInput): {
       status: 'WARN',
       score: 0,
       maxScore: 6,
-      message: 'No supported manifest found at /.well-known/ucp, /.well-known/ucp.json or /ucp.json.',
+      message: 'No supported manifest found at /.well-known/ucp.json, /.well-known/ucp or /ucp.json.',
       remediation:
-        'Publish a manifest matching a documented input profile at `/.well-known/ucp`, `/.well-known/ucp.json` or `/ucp.json` when those declarations are accurate.',
+        'Publish a manifest matching a documented input profile at `/.well-known/ucp.json`, `/.well-known/ucp` or `/ucp.json` when those declarations are accurate.',
     });
 
     checks.push({

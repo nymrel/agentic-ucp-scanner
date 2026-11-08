@@ -151,12 +151,12 @@ test('Remote Open UCP discovery refuses redirects into private networks', async 
   assert.ok(calls.every(c => new URL(c.url).hostname === '93.184.216.34'));
 });
 
-test('New discovery location does not shadow an existing project manifest', async (t) => {
+test('Current well-known precedence reports an unsupported selected profile', async (t) => {
   const legacy = readFileSync(new URL('./fixtures/perfect-agent-store/ucp.json', import.meta.url), 'utf8');
   transportFixture(t, { status: 200, body: '{}' }, { '/ucp.json': { status: 200, body: legacy } });
   const result = await auditUrl('http://93.184.216.34/');
-  assert.equal(result.ucpManifest?.merchant.name, JSON.parse(legacy).merchant.name);
-  assert.equal(result.checks.find(c => c.id === 'ucp-001').details.location, '/ucp.json');
+  assert.equal(result.ucpManifest, null);
+  assert.equal(result.checks.find(c => c.id === 'ucp-001').status, 'FAIL');
 });
 
 test('Remote Open UCP discovery enforces the existing response byte limit', async (t) => {
