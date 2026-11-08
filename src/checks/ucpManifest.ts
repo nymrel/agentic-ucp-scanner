@@ -138,9 +138,9 @@ export function checkUcpManifest(input: UcpManifestCheckInput): {
       status: 'WARN',
       score: 0,
       maxScore: 6,
-      message: 'No project-profile UCP-oriented manifest found at /.well-known/ucp or /ucp.json.',
+      message: 'No project-profile UCP-oriented manifest found at /.well-known/ucp.json, /.well-known/ucp or /ucp.json.',
       remediation:
-        'Publish a manifest matching the documented project profile at `/.well-known/ucp` or `/ucp.json` when those declarations are accurate.',
+        'Publish a manifest matching the documented project profile at `/.well-known/ucp.json`, `/.well-known/ucp` or `/ucp.json` when those declarations are accurate.',
     });
 
     checks.push({

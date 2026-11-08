@@ -96,6 +96,7 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
   const robotsUrl = resolveUrl(origin, '/robots.txt');
   const llmsUrl = resolveUrl(origin, '/llms.txt');
   const llmsFullUrl = resolveUrl(origin, '/llms-full.txt');
+  const ucpWellKnownJsonUrl = resolveUrl(origin, '/.well-known/ucp.json');
   const ucpWellKnownUrl = resolveUrl(origin, '/.well-known/ucp');
   const ucpJsonUrl = resolveUrl(origin, '/ucp.json');
 
@@ -109,10 +110,11 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
     maxRedirects: options.maxRedirects,
   };
 
-  const [robotsRes, llmsRes, llmsFullRes, ucpWkRes, ucpJsonRes, ucpCustomRes] = await Promise.allSettled([
+  const [robotsRes, llmsRes, llmsFullRes, ucpWkJsonRes, ucpWkRes, ucpJsonRes, ucpCustomRes] = await Promise.allSettled([
     safeFetch(robotsUrl, companionFetchOptions),
     safeFetch(llmsUrl, companionFetchOptions),
     safeFetch(llmsFullUrl, companionFetchOptions),
+    safeFetch(ucpWellKnownJsonUrl, companionFetchOptions),
     safeFetch(ucpWellKnownUrl, companionFetchOptions),
     safeFetch(ucpJsonUrl, companionFetchOptions),
     ucpCustomUrl ? safeFetch(ucpCustomUrl, companionFetchOptions) : Promise.reject(new Error('No custom UCP URL')),
@@ -133,6 +135,13 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
     try {
       rawUcpManifest = JSON.parse(ucpCustomRes.value.text);
       ucpLocation = ucpCustomUrl;
+    } catch {}
+  }
+
+  if (rawUcpManifest === null && ucpWkJsonRes.status === 'fulfilled' && ucpWkJsonRes.value.ok) {
+    try {
+      rawUcpManifest = JSON.parse(ucpWkJsonRes.value.text);
+      ucpLocation = '/.well-known/ucp.json';
     } catch {}
   }
 
@@ -298,6 +307,7 @@ export async function auditLocalFixture(fixturePath: string, options: AuditOptio
   let ucpLocation: string | undefined;
 
   const ucpCandidates = [
+    path.join(baseDir, '.well-known', 'ucp.json'),
     path.join(baseDir, 'ucp.json'),
     path.join(baseDir, '.well-known', 'ucp'),
     path.join(baseDir, 'ucp-manifest.json'),

@@ -262,7 +262,7 @@ Total Score is deterministically normalized to **100 points**:
 
 ## Project UCP-Oriented Manifest Profile
 
-The scanner recognizes this project profile at `ucp.json` or `/.well-known/ucp`. It is an input contract for the implemented checks, not a claim of external protocol conformance:
+The scanner recognizes this project profile at `/.well-known/ucp.json`, `/.well-known/ucp`, or `/ucp.json`. A linked remote manifest takes priority, followed by `/.well-known/ucp.json` and the legacy paths. Local fixtures prefer `.well-known/ucp.json` before their legacy files. Discovery does not convert other manifest schemas into this profile. It is an input contract for the implemented checks, not a claim of external protocol conformance:
 
 ```json
 {
