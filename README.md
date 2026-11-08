@@ -28,6 +28,13 @@ The scanner computes a deterministic diagnostic score (0–100) across five equa
 4. **Machine Payments & Autonomous Checkout**: UCP manifests (`/.well-known/ucp`, `/ucp.json`), HTTP 402 / x402 headers, AP2/ACP protocols, Stripe Agent Payment links, stablecoin micropayments.
 5. **AI Crawler & Bot Access**: explicit `robots.txt` rules for named search and crawler user agents.
 
+JSON-LD type detection recognizes the supported bare terms (for example, `Organization`)
+and full `http://schema.org/` or `https://schema.org/` type IRIs, including arrays.
+It does not expand JSON-LD contexts, compact IRIs such as `schema:Organization`,
+custom aliases, or type inheritance. Those forms can be valid JSON-LD but do not
+earn type-specific credit from this bounded recognizer. Earlier substring
+matching could award them incidental credit, including for unrelated namespaces.
+
 > [!IMPORTANT]
 > The score is a project-defined heuristic, not a certification, security assessment, standards-conformance result, search-ranking promise, or proof that an autonomous agent can complete a transaction. Review the underlying checks and target evidence before acting on a grade.
 
