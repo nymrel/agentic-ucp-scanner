@@ -97,6 +97,7 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
   const llmsUrl = resolveUrl(origin, '/llms.txt');
   const llmsFullUrl = resolveUrl(origin, '/llms-full.txt');
   const ucpWellKnownUrl = resolveUrl(origin, '/.well-known/ucp');
+  const ucpPackageUrl = resolveUrl(origin, '/.well-known/ucp.json');
   const ucpJsonUrl = resolveUrl(origin, '/ucp.json');
 
   // Check if HTML has a linked ucp manifest: <link rel="ucp-manifest" href="...">
@@ -109,11 +110,12 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
     maxRedirects: options.maxRedirects,
   };
 
-  const [robotsRes, llmsRes, llmsFullRes, ucpWkRes, ucpJsonRes, ucpCustomRes] = await Promise.allSettled([
+  const [robotsRes, llmsRes, llmsFullRes, ucpWkRes, ucpPackageRes, ucpJsonRes, ucpCustomRes] = await Promise.allSettled([
     safeFetch(robotsUrl, companionFetchOptions),
     safeFetch(llmsUrl, companionFetchOptions),
     safeFetch(llmsFullUrl, companionFetchOptions),
     safeFetch(ucpWellKnownUrl, companionFetchOptions),
+    safeFetch(ucpPackageUrl, companionFetchOptions),
     safeFetch(ucpJsonUrl, companionFetchOptions),
     ucpCustomUrl ? safeFetch(ucpCustomUrl, companionFetchOptions) : Promise.reject(new Error('No custom UCP URL')),
   ]);
@@ -147,6 +149,13 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
     try {
       rawUcpManifest = JSON.parse(ucpJsonRes.value.text);
       ucpLocation = '/ucp.json';
+    } catch {}
+  }
+
+  if (rawUcpManifest === null && ucpPackageRes.status === 'fulfilled' && ucpPackageRes.value.ok) {
+    try {
+      rawUcpManifest = JSON.parse(ucpPackageRes.value.text);
+      ucpLocation = '/.well-known/ucp.json';
     } catch {}
   }
 
@@ -302,6 +311,7 @@ export async function auditLocalFixture(fixturePath: string, options: AuditOptio
     path.join(baseDir, '.well-known', 'ucp'),
     path.join(baseDir, 'ucp-manifest.json'),
     path.join(baseDir, 'manifest.json'),
+    path.join(baseDir, '.well-known', 'ucp.json'),
   ];
 
   for (const cand of ucpCandidates) {

@@ -45,12 +45,10 @@ export function checkMachinePayments(input: MachinePaymentsCheckInput): {
   const protocols = manifest?.paymentCapabilities?.protocols || [];
   const ap2Supported = protocols.some((p) => /ap2/i.test(p)) || /agent-payment-protocol|ap2/i.test(rawHtml);
   const acpSupported = protocols.some((p) => /acp/i.test(p)) || /agent-commerce-protocol|acp/i.test(rawHtml);
+  const stripeProtocolDeclared = protocols.some(p => p.toLowerCase() === 'stripe');
 
   // 3. Detect UCP Checkout
-  const ucpCheckoutSupported =
-    !!manifest?.agentEndpoints?.checkout ||
-    !!manifest?.agentEndpoints?.quote ||
-    (protocols.length > 0 && !!manifest?.merchant?.name);
+  const ucpCheckoutSupported = !!manifest?.agentEndpoints?.checkout;
 
   // 4. Collect Stripe Agent Links & Crypto rails
   for (const link of paymentLinkCandidates) {
@@ -116,7 +114,7 @@ export function checkMachinePayments(input: MachinePaymentsCheckInput): {
 
   // Check 2: Autonomous Checkout & Payment Rails (Stripe / AP2 / ACP / Crypto)
   let railsScore = 0;
-  if (ucpCheckoutSupported && (ap2Supported || acpSupported || stripePaymentLinks.length > 0 || cryptoPaymentRails.length > 0)) {
+  if (ucpCheckoutSupported && (ap2Supported || acpSupported || stripeProtocolDeclared || stripePaymentLinks.length > 0 || cryptoPaymentRails.length > 0)) {
     railsScore = 6;
   } else if (ucpCheckoutSupported || stripePaymentLinks.length > 0 || cryptoPaymentRails.length > 0) {
     railsScore = 4;
@@ -141,6 +139,7 @@ export function checkMachinePayments(input: MachinePaymentsCheckInput): {
       ucpCheckoutSupported,
       ap2Supported,
       acpSupported,
+      stripeProtocolDeclared,
       stripePaymentLinksCount: stripePaymentLinks.length,
       cryptoPaymentRails,
     },
