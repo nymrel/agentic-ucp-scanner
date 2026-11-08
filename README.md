@@ -25,7 +25,7 @@ The scanner computes a deterministic diagnostic score (0–100) across five equa
 1. **Discovery & AI Orientation**: `llms.txt`, `llms-full.txt`, sitemaps, canonical tags.
 2. **Entity Graph & Machine Trust**: JSON-LD `Organization`/`Store`, parent entity provenance (`Nymrel` &rarr; `JalenBuilds LLC`), legal IDs, `sameAs`.
 3. **Intent & Commerce Offers**: Schema.org `Product`, `Offer`, `Service`, price transparency, currency ISO-4217, availability, merchant return terms.
-4. **Machine Payments & Autonomous Checkout**: UCP manifests (`/.well-known/ucp`, `/ucp.json`), HTTP 402 / x402 headers, AP2/ACP protocols, Stripe Agent Payment links, stablecoin micropayments.
+4. **Machine Payments & Autonomous Checkout**: supported manifests (`/.well-known/ucp`, `/.well-known/ucp.json`, `/ucp.json`), HTTP 402 / x402 headers, AP2/ACP protocols, Stripe Agent Payment links, stablecoin micropayments.
 5. **AI Crawler & Bot Access**: explicit `robots.txt` rules for named search and crawler user agents.
 
 JSON-LD type detection recognizes the supported bare terms (for example, `Organization`)
@@ -260,9 +260,43 @@ Total Score is deterministically normalized to **100 points**:
 
 ---
 
-## Project UCP-Oriented Manifest Profile
+## Supported Manifest Input Profiles
 
-The scanner recognizes this project profile at `/.well-known/ucp.json`, `/.well-known/ucp`, or `/ucp.json`. A linked remote manifest takes priority, followed by `/.well-known/ucp.json` and the legacy paths. Local fixtures prefer `.well-known/ucp.json` before their legacy files. Discovery does not convert other manifest schemas into this profile. It is an input contract for the implemented checks, not a claim of external protocol conformance:
+The scanner accepts the project profile below and the **Nymrel `open-ucp` package's
+1.0.0 profile** (`protocol: "UCP/1.0"`, with `entity`, `capabilities`, `endpoints`
+and `paymentRails`). This compatibility does not establish conformance with an
+external commerce protocol or prove that checkout works.
+
+Discovery retains the current scanner behavior: a linked remote manifest takes
+priority, followed by `/.well-known/ucp.json` and the legacy paths. Local fixtures
+prefer `.well-known/ucp.json`. An unsupported selected schema is reported as such;
+the scanner does not silently substitute a lower-priority manifest. Inputs with
+scanner project fields use the existing profile, preserving unrelated extra
+metadata. All remote reads use the existing URL, DNS, redirect, timeout and
+response-size guards; companion reads receive no caller credentials.
+
+For Open UCP inputs, `auditManifest`, `auditUrl` and `auditLocalFixture` return a
+normalized `ucpManifest` in this scanner's project shape. The `ucp-001` check's
+`details.profile` identifies `open-ucp` or `scanner-project`; `declarationsOnly`
+is true. Entity names remain **merchant declarations**. `entity.verified` and
+`entity.machineTrustScore` are ignored and cannot increase the diagnostic score.
+
+Rooted endpoint paths are resolved against the declared `entity.url` origin.
+Ambiguous paths, cross-origin endpoints, credentials, whitespace and backslashes
+are rejected. Catalog and enabled negotiation/checkout declarations are mapped;
+negotiation uses `quote`, falling back to `negotiate`. Disabled capabilities earn
+no endpoint credit. Only enabled `x402`, `ap2` and `stripe` rails are mapped;
+x402/AP2 also require their matching capability to be true. Custom rails and other
+unmapped fields receive no credit. A quote endpoint or named payment protocol
+alone does not establish a checkout endpoint.
+
+The bounded adapter validates the fields it consumes; it does not validate every
+package field, contact identity, payment destination, signature or settlement.
+It never follows a declared action endpoint or executes a purchase.
+
+### Scanner project profile
+
+The scanner recognizes this project profile at the supported discovery locations. It is an input contract for the implemented checks, not a claim of external protocol conformance:
 
 ```json
 {

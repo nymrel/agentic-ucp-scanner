@@ -3,6 +3,7 @@
  */
 
 import { CheckResult, UCPManifest } from '../types.js';
+import { normalizeOpenUcpManifest } from './openUcpManifest.js';
 
 export interface UcpManifestCheckInput {
   manifest: unknown;
@@ -42,10 +43,18 @@ function isHttpUrl(value: unknown): value is string {
 export function validateUcpManifest(value: unknown): {
   manifest: UCPManifest | null;
   issues: string[];
+  profile?: 'scanner-project' | 'open-ucp';
 } {
   const issues: string[] = [];
   if (!isRecord(value)) {
     return { manifest: null, issues: ['Manifest root must be a JSON object.'] };
+  }
+
+  const hasProjectFields = ['merchant', 'agentEndpoints', 'paymentCapabilities'].some(key => key in value);
+  if (!hasProjectFields && ('entity' in value || 'endpoints' in value || 'paymentRails' in value)) {
+    const normalized = normalizeOpenUcpManifest(value);
+    if (normalized.issues.length > 0) return { ...normalized, manifest: null, profile: 'open-ucp' };
+    return { ...validateUcpManifest(normalized.manifest), profile: 'open-ucp' };
   }
 
   if (!isBoundedString(value.ucpVersion, 64)) {
@@ -120,6 +129,7 @@ export function validateUcpManifest(value: unknown): {
   return {
     manifest: issues.length === 0 ? (value as unknown as UCPManifest) : null,
     issues,
+    profile: 'scanner-project',
   };
 }
 
@@ -138,9 +148,9 @@ export function checkUcpManifest(input: UcpManifestCheckInput): {
       status: 'WARN',
       score: 0,
       maxScore: 6,
-      message: 'No project-profile UCP-oriented manifest found at /.well-known/ucp.json, /.well-known/ucp or /ucp.json.',
+      message: 'No supported manifest found at /.well-known/ucp.json, /.well-known/ucp or /ucp.json.',
       remediation:
-        'Publish a manifest matching the documented project profile at `/.well-known/ucp.json`, `/.well-known/ucp` or `/ucp.json` when those declarations are accurate.',
+        'Publish a manifest matching a documented input profile at `/.well-known/ucp.json`, `/.well-known/ucp` or `/ucp.json` when those declarations are accurate.',
     });
 
     checks.push({
@@ -167,7 +177,7 @@ export function checkUcpManifest(input: UcpManifestCheckInput): {
       status: 'FAIL',
       score: 0,
       maxScore: 6,
-      message: `A manifest was found but failed the project profile: ${validation.issues.slice(0, 4).join(' ')}`,
+      message: `A manifest was found but failed its supported input profile: ${validation.issues.slice(0, 4).join(' ')}`,
       details: { issues: validation.issues },
       remediation: 'Correct the manifest types, required objects, and endpoint URLs before relying on its declarations.',
     });
@@ -193,10 +203,12 @@ export function checkUcpManifest(input: UcpManifestCheckInput): {
     status: 'PASS',
     score: 6,
     maxScore: 6,
-    message: `Structurally valid project-profile manifest detected (${foundLocation || 'UCP manifest'}). Declared version: ${manifest.ucpVersion}`,
+    message: `Supported ${validation.profile} manifest declarations detected (${foundLocation || 'UCP manifest'}). Declared version: ${manifest.ucpVersion}. This is not payment or protocol verification.`,
     details: {
       location: foundLocation,
       version: manifest.ucpVersion,
+      profile: validation.profile,
+      declarationsOnly: true,
     },
   });
 

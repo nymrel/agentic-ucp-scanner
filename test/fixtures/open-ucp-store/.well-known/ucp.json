@@ -1,0 +1,65 @@
+{
+  "ucpVersion": "1.0.0",
+  "protocol": "UCP/1.0",
+  "entity": {
+    "name": "Synthetic Interop Merchant",
+    "legalName": "Synthetic Merchant LLC",
+    "parentOrganization": {
+      "name": "Synthetic Parent",
+      "legalEntity": "Synthetic Parent LLC",
+      "url": "https://parent.example"
+    },
+    "url": "https://merchant.example",
+    "contactEmail": "demo@merchant.example",
+    "description": "Synthetic interop fixture; no live merchant or payment.",
+    "verified": false,
+    "machineTrustScore": 0
+  },
+  "capabilities": {
+    "instantCheckout": true,
+    "machineNegotiation": true,
+    "x402Payments": true,
+    "ap2Protocol": false,
+    "dynamicPricing": true,
+    "streamingSettlement": false
+  },
+  "endpoints": {
+    "catalog": "/api/ucp/catalog",
+    "negotiate": "/api/ucp/negotiate",
+    "quote": "/api/ucp/quote",
+    "checkout": "/api/ucp/checkout",
+    "verifyPayment": "/api/ucp/verify-payment"
+  },
+  "paymentRails": {
+    "x402": {
+      "enabled": true,
+      "payTo": "0x0000000000000000000000000000000000000000",
+      "acceptedTokens": [
+        "USDC",
+        "USD"
+      ],
+      "defaultNetwork": "base"
+    },
+    "ap2": {
+      "enabled": false,
+      "version": "2.0",
+      "supportedAuthorities": []
+    }
+  },
+  "catalogSummary": {
+    "productCount": 0,
+    "categories": [],
+    "currency": "USD"
+  },
+  "security": {
+    "signingAlgorithm": "HMAC-SHA256",
+    "quoteTtlSeconds": 300,
+    "rateLimits": {
+      "negotiationsPerMinute": 60,
+      "quotesPerHour": 500
+    }
+  },
+  "llmsTxtUrl": "/llms.txt",
+  "jsonLdContext": "https://schema.org",
+  "updatedAt": "2026-11-08T00:00:00.000Z"
+}
