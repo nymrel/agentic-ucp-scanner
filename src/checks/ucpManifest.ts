@@ -3,12 +3,15 @@
  */
 
 import { CheckResult, UCPManifest } from '../types.js';
+import { normalizeOfficialUcpManifest } from './officialUcpManifest.js';
 import { normalizeOpenUcpManifest } from './openUcpManifest.js';
 
 export interface UcpManifestCheckInput {
   manifest: unknown;
   foundLocation?: string;
 }
+
+export type ManifestInputProfile = 'scanner-project' | 'open-ucp' | 'official-ucp';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -43,7 +46,7 @@ function isHttpUrl(value: unknown): value is string {
 export function validateUcpManifest(value: unknown): {
   manifest: UCPManifest | null;
   issues: string[];
-  profile?: 'scanner-project' | 'open-ucp';
+  profile?: ManifestInputProfile;
 } {
   const issues: string[] = [];
   if (!isRecord(value)) {
@@ -55,6 +58,12 @@ export function validateUcpManifest(value: unknown): {
     const normalized = normalizeOpenUcpManifest(value);
     if (normalized.issues.length > 0) return { ...normalized, manifest: null, profile: 'open-ucp' };
     return { ...validateUcpManifest(normalized.manifest), profile: 'open-ucp' };
+  }
+
+  if (!hasProjectFields && 'ucp' in value) {
+    const normalized = normalizeOfficialUcpManifest(value);
+    if (normalized.issues.length > 0) return { ...normalized, manifest: null, profile: 'official-ucp' };
+    return { ...validateUcpManifest(normalized.manifest), profile: 'official-ucp' };
   }
 
   if (!isBoundedString(value.ucpVersion, 64)) {

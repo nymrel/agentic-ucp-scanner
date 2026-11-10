@@ -262,24 +262,37 @@ Total Score is deterministically normalized to **100 points**:
 
 ## Supported Manifest Input Profiles
 
-The scanner accepts the project profile below and the **Nymrel `open-ucp` package's
-1.0.0 profile** (`protocol: "UCP/1.0"`, with `entity`, `capabilities`, `endpoints`
-and `paymentRails`). This compatibility does not establish conformance with an
-external commerce protocol or prove that checkout works.
+The scanner accepts three input profiles:
+
+1. The **scanner project profile** below (`merchant` / `agentEndpoints` /
+   `paymentCapabilities`).
+2. The **Nymrel `open-ucp` package's 1.0.0 profile** (`protocol: "UCP/1.0"`, with
+   `entity`, `capabilities`, `endpoints` and `paymentRails`).
+3. An **official UCP business profile** as documented in the
+   [UCP overview specification](https://ucp.dev/latest/specification/overview/)
+   Profile Structure section: a document whose top-level `ucp` object declares
+   `version`, `services` and `payment_handlers` (registries may be empty).
+
+Recognizing these shapes does not establish external protocol conformance or prove
+that checkout or payment works.
 
 Discovery retains the current scanner behavior: a linked remote manifest takes
-priority, followed by `/.well-known/ucp.json` and the legacy paths. Local fixtures
-prefer `.well-known/ucp.json`. An unsupported selected schema is reported as such;
-the scanner does not silently substitute a lower-priority manifest. Inputs with
-scanner project fields use the existing profile, preserving unrelated extra
-metadata. All remote reads use the existing URL, DNS, redirect, timeout and
-response-size guards; companion reads receive no caller credentials.
+priority, followed by `/.well-known/ucp.json`, `/.well-known/ucp`, and the legacy
+paths. Local fixtures prefer `.well-known/ucp.json`. An unsupported selected
+schema is reported as such; the scanner does not silently substitute a
+lower-priority manifest. Inputs with scanner project fields use the existing
+profile, preserving unrelated extra metadata. All remote reads use the existing
+URL, DNS, redirect, timeout and response-size guards; companion reads receive no
+caller credentials.
 
-For Open UCP inputs, `auditManifest`, `auditUrl` and `auditLocalFixture` return a
-normalized `ucpManifest` in this scanner's project shape. The `ucp-001` check's
-`details.profile` identifies `open-ucp` or `scanner-project`; `declarationsOnly`
-is true. Entity names remain **merchant declarations**. `entity.verified` and
-`entity.machineTrustScore` are ignored and cannot increase the diagnostic score.
+For Open UCP and official UCP inputs, `auditManifest`, `auditUrl` and
+`auditLocalFixture` return a normalized `ucpManifest` in this scanner's project
+shape. The `ucp-001` check's `details.profile` identifies `open-ucp`,
+`official-ucp`, or `scanner-project`; `declarationsOnly` is true. Entity names
+remain **merchant declarations**. `entity.verified` and `entity.machineTrustScore`
+are ignored and cannot increase the diagnostic score.
+
+### Open UCP package profile
 
 Rooted endpoint paths are resolved against the declared `entity.url` origin.
 Ambiguous paths, cross-origin endpoints, credentials, whitespace and backslashes
@@ -293,6 +306,32 @@ alone does not establish a checkout endpoint.
 The bounded adapter validates the fields it consumes; it does not validate every
 package field, contact identity, payment destination, signature or settlement.
 It never follows a declared action endpoint or executes a purchase.
+
+### Official UCP business profile
+
+Spec-grounded checks (business-profile registry context from the overview and
+schema-authoring docs):
+
+- `ucp.version` must be a calendar date in `YYYY-MM-DD` form.
+- `ucp.services` and `ucp.payment_handlers` must be objects (empty allowed).
+- Service and payment-handler keys must be reverse-domain registry names.
+- Each service binding requires `version` and `transport`
+  (`rest` | `mcp` | `a2a` | `embedded`); business-profile `rest` / `mcp` / `a2a`
+  bindings also require an `https` `endpoint` without credentials.
+- Each payment-handler declaration requires `id` and `version`.
+- When `ucp.capabilities` is present, each entry requires `version` and an
+  `https` `schema` URL.
+- Optional `spec` / `schema` / `supported_versions` / `keys` fields are type- and
+  URL-checked when present; authority binding and remote schema fetches are not
+  performed.
+
+Normalization maps the first shopping (else first) service endpoint to
+`agentEndpoints.catalog`, and also to `checkout` when a `*.checkout` capability is
+declared. Payment-handler registry keys become `paymentCapabilities.protocols`.
+Official profiles do not carry merchant identity; the adapter records the endpoint
+hostname (or a continuity placeholder when no endpoint exists) so the project
+shape remains intact. This is declaration scoring only — endpoints are never
+invoked.
 
 ### Scanner project profile
 

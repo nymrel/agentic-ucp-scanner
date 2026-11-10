@@ -12,7 +12,7 @@
 ## Core Capabilities
 - `auditUrl(url, options)`: Crawls a live URL multi-pass for HTML, robots.txt, llms.txt, and UCP manifests.
 - `auditHtml(html, options)`: Audits raw HTML markup, extracting JSON-LD graphs, meta tags, and payment directives.
-- `auditManifest(manifest)`: Inspects the scanner project profile or Nymrel open-ucp package 1.0.0 declarations. Returns normalized scanner fields; `ucp-001.details.profile` records the recognized input profile.
+- `auditManifest(manifest)`: Inspects the scanner project profile, Nymrel open-ucp package 1.0.0 declarations, or an official UCP business profile (`ucp.version` / `ucp.services` / `ucp.payment_handlers`). Returns normalized scanner fields; `ucp-001.details.profile` records `scanner-project`, `open-ucp`, or `official-ucp`.
 - Discovery includes `/.well-known/ucp`, `/.well-known/ucp.json`, and `/ucp.json`; local fixtures also support `.well-known/ucp.json`.
 - `calculateScore(checks)`: Computes the project-defined deterministic 0-100 diagnostic score across five weighted dimensions.
 
@@ -45,6 +45,6 @@ node ./bin/ucp-audit.js ./test/fixtures/perfect-agent-store --format terminal
 
 ## Interpretation Boundary
 - Scores and grades are heuristics from implemented checks, not certification, security assessment, protocol conformance, ranking guarantee, traffic proof, or transaction proof.
-- Open UCP `verified` and `machineTrustScore` claims are ignored. Disabled rails/capabilities earn no credit; a quote or protocol declaration alone is not checkout support. Declared action endpoints are never invoked.
+- Open UCP `verified` and `machineTrustScore` claims are ignored. Official UCP recognition validates profile structure against the published business-profile rules; it is not protocol certification. Disabled rails/capabilities earn no credit; a quote or protocol declaration alone is not checkout support. Declared action endpoints are never invoked.
 - Remote targets, redirects, DNS answers, headers, and response bodies are treated as untrusted and bounded.
 - Terminal and Markdown reporters neutralize control and structural injection from target-supplied content.
