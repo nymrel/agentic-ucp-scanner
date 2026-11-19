@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { auditLocalFixture, auditManifest } from '../dist/scanner.js';
-import { checkUcpManifest } from '../dist/checks/ucpManifest.js';
+import { checkUcpManifest, validateUcpManifest } from '../dist/checks/ucpManifest.js';
+import { checkMachinePayments } from '../dist/checks/machinePayments.js';
 
 const fixtureDirectory = new URL('./fixtures/official-ucp-store/', import.meta.url);
 const fixtureText = readFileSync(new URL('.well-known/ucp.json', fixtureDirectory), 'utf8');
@@ -19,10 +20,37 @@ test('Official UCP business profile is recognized and normalized', () => {
   assert.equal(result.ucpManifest?.agentEndpoints.catalog, undefined);
   assert.equal(result.ucpManifest?.agentEndpoints.checkout, 'https://business.example.com/ucp/v1');
   assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 2);
-  assert.deepEqual(result.ucpManifest?.paymentCapabilities.protocols, [
-    'com.example.processor_tokenizer',
-  ]);
+  assert.deepEqual(result.ucpManifest?.paymentCapabilities.protocols, []);
+  assert.deepEqual(Object.keys(result.ucpManifest.officialUcp.payment_handlers), ['com.example.processor_tokenizer']);
   assert.equal(result.ucpManifest?.paymentCapabilities.x402Enabled, false);
+  assert.equal(result.machinePayments.ucpCheckoutSupported, true);
+});
+
+test('Serialized official declarations can be reused by the public checks', () => {
+  const source = fixture();
+  const normalized = JSON.parse(JSON.stringify(auditManifest(source).ucpManifest));
+  assert.deepEqual(validateUcpManifest(normalized).manifest, normalized);
+  assert.equal(validateUcpManifest(normalized).profile, 'official-ucp');
+  assert.equal(checkMachinePayments({ manifest: normalized }).audit.ucpCheckoutSupported, true);
+  assert.equal(checkUcpManifest({ manifest: normalized }).checks.find((c) => c.id === 'ucp-002').score, 0);
+  assert.equal(normalized.officialUcp.payment_handlers['com.example.processor_tokenizer'][0].config, undefined);
+
+  delete normalized.officialUcp.capabilities['dev.ucp.shopping.checkout'];
+  assert.equal(checkMachinePayments({ manifest: normalized }).audit.ucpCheckoutSupported, false);
+  delete normalized.officialUcp.services;
+  assert.equal(validateUcpManifest(normalized).manifest, null);
+});
+
+test('Handler names do not establish x402, AP2 or ACP protocol support', () => {
+  const source = fixture();
+  const handler = source.ucp.payment_handlers['com.example.processor_tokenizer'];
+  source.ucp.payment_handlers = { 'com.example.notx402': handler, 'com.example.ap2label': handler, 'com.example.acpname': handler };
+  const result = auditManifest(source);
+  assert.deepEqual(result.ucpManifest.paymentCapabilities.protocols, []);
+  assert.equal(result.machinePayments.x402Supported, false);
+  assert.equal(result.machinePayments.ap2Supported, false);
+  assert.equal(result.machinePayments.acpSupported, false);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-004').score, 0);
   assert.equal(result.machinePayments.ucpCheckoutSupported, true);
 });
 

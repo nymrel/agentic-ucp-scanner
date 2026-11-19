@@ -330,9 +330,12 @@ For `dev.ucp.shopping`, the scanner uses the first REST or MCP service endpoint
 with an explicit commerce capability. It records that service URL under
 `catalog` for `dev.ucp.shopping.catalog.search` or `dev.ucp.shopping.catalog.lookup`,
 and under `checkout` for `dev.ucp.shopping.checkout`. An A2A Agent Card identifies
-a discovery document. Payment-handler registry keys become
-`paymentCapabilities.protocols`. Official profiles earn zero merchant identity
-points. Endpoint scores describe declarations in the profile.
+a discovery document. The normalized result retains the service, capability
+and payment-handler declarations used by the public checks in `officialUcp`.
+This field supports revalidation after JSON serialization and omits handler
+configuration and signing keys. Payment-handler names identify the declared
+handlers. They earn no payment-protocol credit on their own. Official profiles
+earn zero merchant identity points. Endpoint scores describe declarations in the profile.
 
 ### Scanner project profile
 

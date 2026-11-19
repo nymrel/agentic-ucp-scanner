@@ -189,6 +189,22 @@ function validateRegistry(
   }
 }
 
+/** Called after registry validation. Retain only fields needed to repeat discovery scoring. */
+function projectRegistry(registry: unknown, fields: string[]): Record<string, Record<string, unknown>[]> {
+  if (!isRecord(registry)) return {};
+  const result: Record<string, Record<string, unknown>[]> = {};
+  for (const [name, entries] of Object.entries(registry)) {
+    result[name] = (entries as Record<string, unknown>[]).map(entry => {
+      const declaration: Record<string, unknown> = {};
+      for (const field of fields) {
+        if (Object.hasOwn(entry, field)) declaration[field] = entry[field];
+      }
+      return declaration;
+    });
+  }
+  return result;
+}
+
 export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
   manifest: Record<string, unknown> | null;
   issues: string[];
@@ -271,8 +287,6 @@ export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
 
   if (issues.length > 0) return { manifest: null, issues };
 
-  const protocols =
-    isRecord(ucp.payment_handlers) ? Object.keys(ucp.payment_handlers) : [];
   const agentEndpoints: Record<string, string> = {};
   const capabilities = ucp.capabilities;
   if (shoppingEndpoint && isRecord(capabilities)) {
@@ -289,9 +303,12 @@ export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
     manifest: {
       ucpVersion: ucp.version,
       agentEndpoints,
-      paymentCapabilities: {
-        protocols,
-        x402Enabled: protocols.some((name) => /x402/i.test(name)),
+      paymentCapabilities: { protocols: [], x402Enabled: false },
+      officialUcp: {
+        version: ucp.version,
+        services: projectRegistry(ucp.services, ['version', 'transport', 'endpoint']),
+        capabilities: projectRegistry(capabilities, ['version', 'schema']),
+        payment_handlers: projectRegistry(ucp.payment_handlers, ['version', 'id']),
       },
     },
     issues,

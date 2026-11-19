@@ -61,8 +61,9 @@ export function validateUcpManifest(value: unknown): ManifestValidation {
     return { ...validateUcpManifest(normalized.manifest), profile: 'open-ucp' };
   }
 
-  if (!hasProjectFields && 'ucp' in value) {
-    const normalized = normalizeOfficialUcpManifest(value);
+  const hasOfficialEvidence = hasProjectFields && value.merchant === undefined && Object.hasOwn(value, 'officialUcp');
+  if ((!hasProjectFields && 'ucp' in value) || hasOfficialEvidence) {
+    const normalized = normalizeOfficialUcpManifest(hasOfficialEvidence ? { ucp: value.officialUcp } : value);
     if (!normalized.manifest) return { ...normalized, manifest: null, profile: 'official-ucp' };
     return validateProjectFields(normalized.manifest, 'official-ucp');
   }
