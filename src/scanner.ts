@@ -476,7 +476,7 @@ export function auditManifest(manifest: unknown): AuditResult {
   const score = calculateScore(allChecks);
 
   return {
-    target: ucpResult.manifest?.merchant.name || 'in-memory-ucp-manifest',
+    target: ucpResult.manifest?.merchant?.name || 'in-memory-ucp-manifest',
     isLocalFixture: true,
     auditedAt: new Date().toISOString(),
     responseTimeMs,

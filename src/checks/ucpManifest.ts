@@ -2,13 +2,16 @@
  * Check Module: project UCP-oriented manifest profile
  */
 
-import { CheckResult, UCPManifest } from '../types.js';
+import { CheckResult, NormalizedUCPManifest } from '../types.js';
+import { normalizeOfficialUcpManifest } from './officialUcpManifest.js';
 import { normalizeOpenUcpManifest } from './openUcpManifest.js';
 
 export interface UcpManifestCheckInput {
   manifest: unknown;
   foundLocation?: string;
 }
+
+export type ManifestInputProfile = 'scanner-project' | 'open-ucp' | 'official-ucp';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -40,12 +43,13 @@ function isHttpUrl(value: unknown): value is string {
   }
 }
 
-export function validateUcpManifest(value: unknown): {
-  manifest: UCPManifest | null;
+interface ManifestValidation {
+  manifest: NormalizedUCPManifest | null;
   issues: string[];
-  profile?: 'scanner-project' | 'open-ucp';
-} {
-  const issues: string[] = [];
+  profile?: ManifestInputProfile;
+}
+
+export function validateUcpManifest(value: unknown): ManifestValidation {
   if (!isRecord(value)) {
     return { manifest: null, issues: ['Manifest root must be a JSON object.'] };
   }
@@ -57,12 +61,26 @@ export function validateUcpManifest(value: unknown): {
     return { ...validateUcpManifest(normalized.manifest), profile: 'open-ucp' };
   }
 
+  const hasOfficialEvidence = hasProjectFields && value.merchant === undefined && Object.hasOwn(value, 'officialUcp');
+  if ((!hasProjectFields && 'ucp' in value) || hasOfficialEvidence) {
+    const normalized = normalizeOfficialUcpManifest(hasOfficialEvidence ? { ucp: value.officialUcp } : value);
+    if (!normalized.manifest) return { ...normalized, manifest: null, profile: 'official-ucp' };
+    return validateProjectFields(normalized.manifest, 'official-ucp');
+  }
+
+  return validateProjectFields(value, 'scanner-project');
+}
+
+function validateProjectFields(value: Record<string, unknown>, profile: ManifestInputProfile): ManifestValidation {
+  const issues: string[] = [];
   if (!isBoundedString(value.ucpVersion, 64)) {
     issues.push('ucpVersion must be a non-empty string.');
   }
 
   if (!isRecord(value.merchant)) {
-    issues.push('merchant must be an object.');
+    if (profile !== 'official-ucp' || value.merchant !== undefined) {
+      issues.push('merchant must be an object.');
+    }
   } else {
     if (!isBoundedString(value.merchant.name, 256)) {
       issues.push('merchant.name must be a non-empty string.');
@@ -127,14 +145,14 @@ export function validateUcpManifest(value: unknown): {
   }
 
   return {
-    manifest: issues.length === 0 ? (value as unknown as UCPManifest) : null,
+    manifest: issues.length === 0 ? (value as unknown as NormalizedUCPManifest) : null,
     issues,
-    profile: 'scanner-project',
+    profile,
   };
 }
 
 export function checkUcpManifest(input: UcpManifestCheckInput): {
-  manifest: UCPManifest | null;
+  manifest: NormalizedUCPManifest | null;
   checks: CheckResult[];
 } {
   const checks: CheckResult[] = [];
@@ -232,15 +250,17 @@ export function checkUcpManifest(input: UcpManifestCheckInput): {
     score: merchantScore,
     maxScore: 4,
     message:
-      merchantScore >= 3
-        ? `Merchant identity fields declared: "${manifest.merchant.name}" (${manifest.merchant.legalName || 'legal name not declared'})`
-        : `Partial merchant identity in UCP manifest: ${manifest.merchant?.name || 'Incomplete'}.`,
+      !manifest.merchant
+        ? 'The manifest declares no merchant identity.'
+        : merchantScore >= 3
+          ? `Merchant identity fields declared: "${manifest.merchant.name}" (${manifest.merchant.legalName || 'legal name not declared'})`
+          : `Partial merchant identity in UCP manifest: ${manifest.merchant.name}.`,
     details: {
       merchant: manifest.merchant,
       issues: merchantIssues,
     },
     remediation:
-      merchantScore < 3
+      merchantScore < 3 && validation.profile !== 'official-ucp'
         ? 'Add legalName, parentEntity, and contactEmail to the merchant block in your UCP manifest.'
         : undefined,
   });

@@ -1,0 +1,321 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+import { auditLocalFixture, auditManifest } from '../dist/scanner.js';
+import { checkUcpManifest, validateUcpManifest } from '../dist/checks/ucpManifest.js';
+import { checkMachinePayments } from '../dist/checks/machinePayments.js';
+
+const fixtureDirectory = new URL('./fixtures/official-ucp-store/', import.meta.url);
+const fixtureText = readFileSync(new URL('.well-known/ucp.json', fixtureDirectory), 'utf8');
+const fixture = () => JSON.parse(fixtureText);
+
+test('Official UCP business profile is recognized and normalized', () => {
+  const result = auditManifest(fixture());
+  assert.equal(result.checks.find((c) => c.id === 'ucp-001').status, 'PASS');
+  assert.equal(result.checks.find((c) => c.id === 'ucp-001').details.profile, 'official-ucp');
+  assert.equal(result.ucpManifest?.ucpVersion, '2026-08-25');
+  assert.equal(result.ucpManifest?.merchant, undefined);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-002').score, 0);
+  assert.equal(result.ucpManifest?.agentEndpoints.catalog, undefined);
+  assert.equal(result.ucpManifest?.agentEndpoints.checkout, 'https://business.example.com/ucp/v1');
+  assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 2);
+  assert.deepEqual(result.ucpManifest?.paymentCapabilities.protocols, []);
+  assert.deepEqual(Object.keys(result.ucpManifest.officialUcp.payment_handlers), ['com.example.processor_tokenizer']);
+  assert.equal(result.ucpManifest?.paymentCapabilities.x402Enabled, false);
+  assert.equal(result.machinePayments.ucpCheckoutSupported, true);
+});
+
+test('Serialized official declarations can be reused by the public checks', () => {
+  const source = fixture();
+  const normalized = JSON.parse(JSON.stringify(auditManifest(source).ucpManifest));
+  assert.deepEqual(validateUcpManifest(normalized).manifest, normalized);
+  assert.equal(validateUcpManifest(normalized).profile, 'official-ucp');
+  assert.equal(checkMachinePayments({ manifest: normalized }).audit.ucpCheckoutSupported, true);
+  assert.equal(checkUcpManifest({ manifest: normalized }).checks.find((c) => c.id === 'ucp-002').score, 0);
+  assert.equal(normalized.officialUcp.payment_handlers['com.example.processor_tokenizer'][0].config, undefined);
+
+  delete normalized.officialUcp.capabilities['dev.ucp.shopping.checkout'];
+  assert.equal(checkMachinePayments({ manifest: normalized }).audit.ucpCheckoutSupported, false);
+  delete normalized.officialUcp.services;
+  assert.equal(validateUcpManifest(normalized).manifest, null);
+});
+
+test('Handler names do not establish x402, AP2 or ACP protocol support', () => {
+  const source = fixture();
+  const handler = source.ucp.payment_handlers['com.example.processor_tokenizer'];
+  source.ucp.payment_handlers = { 'com.example.notx402': handler, 'com.example.ap2label': handler, 'com.example.acpname': handler };
+  const result = auditManifest(source);
+  assert.deepEqual(result.ucpManifest.paymentCapabilities.protocols, []);
+  assert.equal(result.machinePayments.x402Supported, false);
+  assert.equal(result.machinePayments.ap2Supported, false);
+  assert.equal(result.machinePayments.acpSupported, false);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-004').score, 0);
+  assert.equal(result.machinePayments.ucpCheckoutSupported, true);
+});
+
+test('Official UCP minimal empty registries still pass structure checks', () => {
+  const result = checkUcpManifest({
+    manifest: {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {},
+        supported_versions: {
+          '2026-01-11': 'https://business.example.com/.well-known/ucp/2026-01-11',
+        },
+      },
+    },
+    foundLocation: '/.well-known/ucp',
+  });
+  assert.ok(result.manifest);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-001').status, 'PASS');
+  assert.equal(result.checks.find((c) => c.id === 'ucp-001').details.profile, 'official-ucp');
+  assert.equal(result.manifest.merchant, undefined);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-002').score, 0);
+  assert.deepEqual(result.manifest.agentEndpoints, {});
+  assert.deepEqual(result.manifest.paymentCapabilities.protocols, []);
+});
+
+test('Official UCP checkout capability absence withholds checkout credit', () => {
+  const manifest = fixture();
+  delete manifest.ucp.capabilities;
+  const result = auditManifest(manifest);
+  assert.ok(result.ucpManifest);
+  assert.equal(result.ucpManifest.agentEndpoints.catalog, undefined);
+  assert.equal(result.ucpManifest.agentEndpoints.checkout, undefined);
+  assert.equal(result.machinePayments.ucpCheckoutSupported, false);
+});
+
+test('Only a matching shopping service and capability earn endpoint credit', () => {
+  const manifest = fixture();
+  const shoppingBindings = manifest.ucp.services['dev.ucp.shopping'];
+  const checkout = manifest.ucp.capabilities['dev.ucp.shopping.checkout'];
+  const catalog = [{ version: '2026-08-25', schema: 'https://ucp.dev/schemas/catalog_search.json' }];
+  const card = { version: '2026-08-25', transport: 'a2a', endpoint: 'https://service.example/agent-card.json' };
+
+  for (const [services, capabilities] of [
+    [{ 'com.example.support': [card] }, {}],
+    [{ 'com.example.support': [card] }, { 'dev.ucp.shopping.checkout': checkout }],
+    [{ 'dev.ucp.shopping': [card] }, { 'dev.ucp.shopping.catalog.search': catalog }],
+    [{ 'dev.ucp.shopping': shoppingBindings }, { 'com.example.checkout': checkout }],
+  ]) {
+    const result = auditManifest({ ucp: { ...manifest.ucp, services, capabilities } });
+    assert.equal(result.checks.find((c) => c.id === 'ucp-001').status, 'PASS');
+    assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 0);
+    assert.deepEqual(result.ucpManifest.agentEndpoints, {});
+    assert.equal(result.machinePayments.ucpCheckoutSupported, false);
+  }
+
+  for (const operation of ['search', 'lookup']) {
+    const capabilities = { [`dev.ucp.shopping.catalog.${operation}`]: catalog };
+    const result = auditManifest({ ucp: { ...manifest.ucp, capabilities } });
+    assert.deepEqual(result.ucpManifest.agentEndpoints, { catalog: 'https://business.example.com/ucp/v1' });
+    assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 2);
+  }
+});
+
+test('Official UCP malformed profiles fail closed with clear issues', () => {
+  const cases = [
+    { ucp: null },
+    { ucp: { version: '1.0', services: {}, payment_handlers: {} } },
+    { ucp: { version: '2026-13-40', services: {}, payment_handlers: {} } },
+    { ucp: { version: '2026-08-25', payment_handlers: {} } },
+    { ucp: { version: '2026-08-25', services: {}, payment_handlers: [] } },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {
+          shopping: [{ version: '2026-08-25', transport: 'rest', endpoint: 'https://business.example.com/ucp' }],
+        },
+        payment_handlers: {},
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {
+          'dev.ucp.shopping': [
+            { version: '2026-08-25', transport: 'rest' },
+          ],
+        },
+        payment_handlers: {},
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {
+          'dev.ucp.shopping': [
+            {
+              version: '2026-08-25',
+              transport: 'rest',
+              endpoint: 'http://business.example.com/ucp',
+            },
+          ],
+        },
+        payment_handlers: {},
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {
+          'dev.ucp.shopping': [
+            {
+              version: '2026-08-25',
+              transport: 'rest',
+              endpoint: 'https://user:secret@business.example.com/ucp',
+            },
+          ],
+        },
+        payment_handlers: {},
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {
+          'com.example.pay': [{ version: '2026-08-25' }],
+        },
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {
+          'com.example.pay': [{ id: 'pay', version: 'draft' }],
+        },
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {},
+        capabilities: {
+          'dev.ucp.shopping.checkout': [{ version: '2026-08-25' }],
+        },
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {},
+        supported_versions: {
+          draft: 'https://business.example.com/.well-known/ucp/old',
+        },
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {
+          'dev.ucp.shopping': [
+            {
+              version: '2026-08-25',
+              transport: 'rest',
+              endpoint: 'https://business.example.com/ucp',
+              id: '',
+              config: 'nope',
+              spec: 'http://ucp.dev/spec',
+            },
+          ],
+        },
+        payment_handlers: {},
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {
+          'com.example.pay': [
+            {
+              id: 'pay',
+              version: '2026-08-25',
+              config: [],
+              available_instruments: 'card',
+              schema: 'file:///tmp/schema.json',
+            },
+          ],
+        },
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {},
+        capabilities: {
+          'dev.ucp.shopping.checkout': [
+            {
+              version: '2026-08-25',
+              schema: 'https://ucp.dev/schemas/checkout.json',
+              extends: ['not a name'],
+              config: 'bad',
+            },
+          ],
+        },
+      },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {},
+      },
+      keys: { kid: 'not-an-array' },
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {},
+        payment_handlers: {},
+      },
+      keys: ['not-a-jwk'],
+    },
+    {
+      ucp: {
+        version: '2026-08-25',
+        services: {
+          'dev.ucp.shopping': 'rest',
+        },
+        payment_handlers: {},
+      },
+    },
+  ];
+
+  for (const manifest of cases) {
+    const result = checkUcpManifest({ manifest, foundLocation: '/.well-known/ucp' });
+    assert.equal(result.manifest, null, JSON.stringify(manifest));
+    assert.equal(result.checks[0].status, 'FAIL');
+    assert.ok(Array.isArray(result.checks[0].details.issues));
+    assert.ok(result.checks[0].details.issues.length > 0);
+    assert.match(result.checks[0].message, /failed its supported input profile/i);
+  }
+});
+
+test('Official UCP fixture is discovered from local .well-known/ucp.json', async () => {
+  const result = await auditLocalFixture(fileURLToPath(fixtureDirectory));
+  assert.equal(result.checks.find((c) => c.id === 'ucp-001').details.profile, 'official-ucp');
+  assert.equal(result.ucpManifest?.merchant, undefined);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-002').score, 0);
+});
+
+test('Existing open-ucp and scanner-project fixtures keep their profiles', () => {
+  const openUcp = JSON.parse(
+    readFileSync(new URL('./fixtures/open-ucp-store/.well-known/ucp.json', import.meta.url), 'utf8'),
+  );
+  const project = JSON.parse(
+    readFileSync(new URL('./fixtures/perfect-agent-store/ucp.json', import.meta.url), 'utf8'),
+  );
+  assert.equal(auditManifest(openUcp).checks.find((c) => c.id === 'ucp-001').details.profile, 'open-ucp');
+  assert.equal(auditManifest(project).checks.find((c) => c.id === 'ucp-001').details.profile, 'scanner-project');
+  assert.equal(auditManifest(project).ucpManifest?.merchant.name, project.merchant.name);
+  delete project.merchant;
+  assert.equal(auditManifest(project).ucpManifest, null);
+});

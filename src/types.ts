@@ -91,6 +91,18 @@ export interface UCPManifest {
   extensions?: Record<string, unknown>;
 }
 
+/** Official UCP profiles can declare commerce capabilities without a merchant identity. */
+export type NormalizedUCPManifest = Omit<UCPManifest, 'merchant'> & {
+  merchant?: UCPMerchant;
+  /** Structural evidence retained for revalidation of a serialized official profile. */
+  officialUcp?: {
+    version: string;
+    services: Record<string, Record<string, unknown>[]>;
+    capabilities: Record<string, Record<string, unknown>[]>;
+    payment_handlers: Record<string, Record<string, unknown>[]>;
+  };
+};
+
 export interface BotAccessRule {
   agent: string;
   allowed: boolean;
@@ -182,7 +194,7 @@ export interface AuditResult {
   httpStatus?: number;
   score: AuditScore;
   checks: CheckResult[];
-  ucpManifest?: UCPManifest | null;
+  ucpManifest?: NormalizedUCPManifest | null;
   robotsTxt?: RobotsTxtAudit;
   llmsTxt?: LlmsTxtAudit;
   jsonLd?: JsonLdAudit;
