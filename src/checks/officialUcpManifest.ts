@@ -190,7 +190,7 @@ function validateRegistry(
 }
 
 export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
-  manifest: unknown;
+  manifest: Record<string, unknown> | null;
   issues: string[];
 } {
   const issues: string[] = [];
@@ -222,9 +222,7 @@ export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
     }
   }
 
-  const serviceEndpoints: URL[] = [];
   let shoppingEndpoint: URL | null = null;
-  let hasCheckoutCapability = false;
 
   if (!isRecord(ucp.services)) {
     issues.push('ucp.services must be an object (empty object allowed).');
@@ -244,16 +242,14 @@ export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
         continue;
       }
       for (let index = 0; index < entries.length; index += 1) {
-        const { endpoint } = validateServiceBinding(
+        const { endpoint, transport } = validateServiceBinding(
           entries[index],
           `ucp.services["${key}"][${index}]`,
           issues,
         );
-        if (endpoint) {
-          serviceEndpoints.push(endpoint);
-          if (/(^|\.)shopping(\.|$)/i.test(key) && !shoppingEndpoint) {
-            shoppingEndpoint = endpoint;
-          }
+        if (!shoppingEndpoint && key === 'dev.ucp.shopping' && endpoint &&
+            (transport === 'rest' || transport === 'mcp')) {
+          shoppingEndpoint = endpoint;
         }
       }
     }
@@ -263,11 +259,6 @@ export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
 
   if (ucp.capabilities !== undefined) {
     validateRegistry(ucp.capabilities, 'capabilities', issues, validateCapability);
-    if (isRecord(ucp.capabilities)) {
-      hasCheckoutCapability = Object.keys(ucp.capabilities).some((key) =>
-        /(^|\.)checkout$/i.test(key),
-      );
-    }
   }
 
   if (value.keys !== undefined) {
@@ -282,25 +273,21 @@ export function normalizeOfficialUcpManifest(value: Record<string, unknown>): {
 
   const protocols =
     isRecord(ucp.payment_handlers) ? Object.keys(ucp.payment_handlers) : [];
-  const primary = shoppingEndpoint || serviceEndpoints[0] || null;
-  const merchantName = primary ? primary.hostname : 'UCP business profile';
-  const merchantUrl = primary ? primary.origin : undefined;
-
   const agentEndpoints: Record<string, string> = {};
-  if (primary) {
-    agentEndpoints.catalog = primary.href;
-    if (hasCheckoutCapability) {
-      agentEndpoints.checkout = primary.href;
+  const capabilities = ucp.capabilities;
+  if (shoppingEndpoint && isRecord(capabilities)) {
+    if (Object.hasOwn(capabilities, 'dev.ucp.shopping.catalog.search') ||
+        Object.hasOwn(capabilities, 'dev.ucp.shopping.catalog.lookup')) {
+      agentEndpoints.catalog = shoppingEndpoint.href;
+    }
+    if (Object.hasOwn(capabilities, 'dev.ucp.shopping.checkout')) {
+      agentEndpoints.checkout = shoppingEndpoint.href;
     }
   }
 
   return {
     manifest: {
       ucpVersion: ucp.version,
-      merchant: {
-        name: merchantName,
-        ...(merchantUrl ? { url: merchantUrl } : {}),
-      },
       agentEndpoints,
       paymentCapabilities: {
         protocols,

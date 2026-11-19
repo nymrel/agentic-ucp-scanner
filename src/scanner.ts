@@ -229,7 +229,7 @@ export async function auditUrl(targetUrl: string, options: AuditOptions = {}): P
   const paymentsResult = checkMachinePayments({
     headers: responseHeaders,
     paymentLinkCandidates: parsedHtml.paymentLinkCandidates,
-    manifest: ucpManifest,
+    manifest: rawUcpManifest,
     rawHtml,
   });
   allChecks.push(...paymentsResult.checks);
@@ -380,7 +380,7 @@ export async function auditLocalFixture(fixturePath: string, options: AuditOptio
   const paymentsResult = checkMachinePayments({
     headers: {},
     paymentLinkCandidates: parsedHtml.paymentLinkCandidates,
-    manifest: ucpManifest,
+    manifest: rawUcpManifest,
     rawHtml,
   });
   allChecks.push(...paymentsResult.checks);
@@ -468,7 +468,7 @@ export function auditManifest(manifest: unknown): AuditResult {
   allChecks.push(...ucpResult.checks);
 
   const paymentsResult = checkMachinePayments({
-    manifest: ucpResult.manifest,
+    manifest,
   });
   allChecks.push(...paymentsResult.checks);
 
@@ -476,7 +476,7 @@ export function auditManifest(manifest: unknown): AuditResult {
   const score = calculateScore(allChecks);
 
   return {
-    target: ucpResult.manifest?.merchant.name || 'in-memory-ucp-manifest',
+    target: ucpResult.manifest?.merchant?.name || 'in-memory-ucp-manifest',
     isLocalFixture: true,
     auditedAt: new Date().toISOString(),
     responseTimeMs,

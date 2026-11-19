@@ -288,8 +288,9 @@ caller credentials.
 For Open UCP and official UCP inputs, `auditManifest`, `auditUrl` and
 `auditLocalFixture` return a normalized `ucpManifest` in this scanner's project
 shape. The `ucp-001` check's `details.profile` identifies `open-ucp`,
-`official-ucp`, or `scanner-project`; `declarationsOnly` is true. Entity names
-remain **merchant declarations**. `entity.verified` and `entity.machineTrustScore`
+`official-ucp`, or `scanner-project`; `declarationsOnly` is true. An official
+profile without a merchant identity omits the normalized `merchant` field.
+For Open UCP, `entity.verified` and `entity.machineTrustScore`
 are ignored and cannot increase the diagnostic score.
 
 ### Open UCP package profile
@@ -325,13 +326,13 @@ schema-authoring docs):
   URL-checked when present; authority binding and remote schema fetches are not
   performed.
 
-Normalization maps the first shopping (else first) service endpoint to
-`agentEndpoints.catalog`, and also to `checkout` when a `*.checkout` capability is
-declared. Payment-handler registry keys become `paymentCapabilities.protocols`.
-Official profiles do not carry merchant identity; the adapter records the endpoint
-hostname (or a continuity placeholder when no endpoint exists) so the project
-shape remains intact. This is declaration scoring only — endpoints are never
-invoked.
+For `dev.ucp.shopping`, the scanner uses the first REST or MCP service endpoint
+with an explicit commerce capability. It records that service URL under
+`catalog` for `dev.ucp.shopping.catalog.search` or `dev.ucp.shopping.catalog.lookup`,
+and under `checkout` for `dev.ucp.shopping.checkout`. An A2A Agent Card identifies
+a discovery document. Payment-handler registry keys become
+`paymentCapabilities.protocols`. Official profiles earn zero merchant identity
+points. Endpoint scores describe declarations in the profile.
 
 ### Scanner project profile
 

@@ -14,10 +14,11 @@ test('Official UCP business profile is recognized and normalized', () => {
   assert.equal(result.checks.find((c) => c.id === 'ucp-001').status, 'PASS');
   assert.equal(result.checks.find((c) => c.id === 'ucp-001').details.profile, 'official-ucp');
   assert.equal(result.ucpManifest?.ucpVersion, '2026-08-25');
-  assert.equal(result.ucpManifest?.merchant.name, 'business.example.com');
-  assert.equal(result.ucpManifest?.merchant.url, 'https://business.example.com');
-  assert.equal(result.ucpManifest?.agentEndpoints.catalog, 'https://business.example.com/ucp/v1');
+  assert.equal(result.ucpManifest?.merchant, undefined);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-002').score, 0);
+  assert.equal(result.ucpManifest?.agentEndpoints.catalog, undefined);
   assert.equal(result.ucpManifest?.agentEndpoints.checkout, 'https://business.example.com/ucp/v1');
+  assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 2);
   assert.deepEqual(result.ucpManifest?.paymentCapabilities.protocols, [
     'com.example.processor_tokenizer',
   ]);
@@ -42,7 +43,8 @@ test('Official UCP minimal empty registries still pass structure checks', () => 
   assert.ok(result.manifest);
   assert.equal(result.checks.find((c) => c.id === 'ucp-001').status, 'PASS');
   assert.equal(result.checks.find((c) => c.id === 'ucp-001').details.profile, 'official-ucp');
-  assert.equal(result.manifest.merchant.name, 'UCP business profile');
+  assert.equal(result.manifest.merchant, undefined);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-002').score, 0);
   assert.deepEqual(result.manifest.agentEndpoints, {});
   assert.deepEqual(result.manifest.paymentCapabilities.protocols, []);
 });
@@ -52,9 +54,37 @@ test('Official UCP checkout capability absence withholds checkout credit', () =>
   delete manifest.ucp.capabilities;
   const result = auditManifest(manifest);
   assert.ok(result.ucpManifest);
-  assert.equal(result.ucpManifest.agentEndpoints.catalog, 'https://business.example.com/ucp/v1');
+  assert.equal(result.ucpManifest.agentEndpoints.catalog, undefined);
   assert.equal(result.ucpManifest.agentEndpoints.checkout, undefined);
   assert.equal(result.machinePayments.ucpCheckoutSupported, false);
+});
+
+test('Only a matching shopping service and capability earn endpoint credit', () => {
+  const manifest = fixture();
+  const shoppingBindings = manifest.ucp.services['dev.ucp.shopping'];
+  const checkout = manifest.ucp.capabilities['dev.ucp.shopping.checkout'];
+  const catalog = [{ version: '2026-08-25', schema: 'https://ucp.dev/schemas/catalog_search.json' }];
+  const card = { version: '2026-08-25', transport: 'a2a', endpoint: 'https://service.example/agent-card.json' };
+
+  for (const [services, capabilities] of [
+    [{ 'com.example.support': [card] }, {}],
+    [{ 'com.example.support': [card] }, { 'dev.ucp.shopping.checkout': checkout }],
+    [{ 'dev.ucp.shopping': [card] }, { 'dev.ucp.shopping.catalog.search': catalog }],
+    [{ 'dev.ucp.shopping': shoppingBindings }, { 'com.example.checkout': checkout }],
+  ]) {
+    const result = auditManifest({ ucp: { ...manifest.ucp, services, capabilities } });
+    assert.equal(result.checks.find((c) => c.id === 'ucp-001').status, 'PASS');
+    assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 0);
+    assert.deepEqual(result.ucpManifest.agentEndpoints, {});
+    assert.equal(result.machinePayments.ucpCheckoutSupported, false);
+  }
+
+  for (const operation of ['search', 'lookup']) {
+    const capabilities = { [`dev.ucp.shopping.catalog.${operation}`]: catalog };
+    const result = auditManifest({ ucp: { ...manifest.ucp, capabilities } });
+    assert.deepEqual(result.ucpManifest.agentEndpoints, { catalog: 'https://business.example.com/ucp/v1' });
+    assert.equal(result.checks.find((c) => c.id === 'ucp-003').score, 2);
+  }
 });
 
 test('Official UCP malformed profiles fail closed with clear issues', () => {
@@ -244,7 +274,8 @@ test('Official UCP malformed profiles fail closed with clear issues', () => {
 test('Official UCP fixture is discovered from local .well-known/ucp.json', async () => {
   const result = await auditLocalFixture(fileURLToPath(fixtureDirectory));
   assert.equal(result.checks.find((c) => c.id === 'ucp-001').details.profile, 'official-ucp');
-  assert.equal(result.ucpManifest?.merchant.name, 'business.example.com');
+  assert.equal(result.ucpManifest?.merchant, undefined);
+  assert.equal(result.checks.find((c) => c.id === 'ucp-002').score, 0);
 });
 
 test('Existing open-ucp and scanner-project fixtures keep their profiles', () => {
@@ -257,4 +288,6 @@ test('Existing open-ucp and scanner-project fixtures keep their profiles', () =>
   assert.equal(auditManifest(openUcp).checks.find((c) => c.id === 'ucp-001').details.profile, 'open-ucp');
   assert.equal(auditManifest(project).checks.find((c) => c.id === 'ucp-001').details.profile, 'scanner-project');
   assert.equal(auditManifest(project).ucpManifest?.merchant.name, project.merchant.name);
+  delete project.merchant;
+  assert.equal(auditManifest(project).ucpManifest, null);
 });
